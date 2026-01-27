@@ -37,6 +37,7 @@ type OrchestratorModel struct {
 	quitting       bool
 	width          int
 	height         int
+	selectedIndex  int // Index of selected persona for keyboard navigation
 }
 
 // Styles
@@ -84,6 +85,13 @@ var (
 
 	connectorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")) // Gray
+
+	selectedStyle = lipgloss.NewStyle().
+			Border(lipgloss.ThickBorder()).
+			BorderForeground(lipgloss.Color("205")). // Bright pink/magenta
+			Padding(0, 1).
+			Width(35).
+			Bold(true)
 )
 
 // NewOrchestratorModel creates a new TUI model
@@ -113,14 +121,46 @@ func (m OrchestratorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
+
+		case "up", "k":
+			// Move selection up
+			if m.selectedIndex > 0 {
+				m.selectedIndex--
+			}
+
+		case "down", "j":
+			// Move selection down
+			if m.selectedIndex < len(m.sessions)-1 {
+				m.selectedIndex++
+			}
+
+		case "left", "h":
+			// Move selection left (previous in same row)
+			if m.selectedIndex > 0 {
+				m.selectedIndex--
+			}
+
+		case "right", "l":
+			// Move selection right (next in same row)
+			if m.selectedIndex < len(m.sessions)-1 {
+				m.selectedIndex++
+			}
+
+		case "enter", "shift+enter":
+			// Attach to selected persona's tmux session
+			if m.selectedIndex >= 0 && m.selectedIndex < len(m.sessions) {
+				selectedSession := m.sessions[m.selectedIndex]
+				return m, attachToTmux(selectedSession.ID)
+			}
 		}
 
 	case tea.MouseMsg:
 		if msg.Button == tea.MouseButtonLeft {
 			// Check if click is within any persona zone
-			for _, zone := range m.mouseZones {
+			for i, zone := range m.mouseZones {
 				if msg.X >= zone.X && msg.X <= zone.X+zone.Width &&
 					msg.Y >= zone.Y && msg.Y <= zone.Y+zone.Height {
+					m.selectedIndex = i // Update selection to clicked persona
 					return m, attachToTmux(zone.SessionID)
 				}
 			}
@@ -133,6 +173,13 @@ func (m OrchestratorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TickMsg:
 		// Refresh session data
 		m.refreshSessions()
+		// Ensure selectedIndex is valid after refresh
+		if m.selectedIndex >= len(m.sessions) {
+			m.selectedIndex = len(m.sessions) - 1
+		}
+		if m.selectedIndex < 0 && len(m.sessions) > 0 {
+			m.selectedIndex = 0
+		}
 		return m, tickCmd()
 
 	case AttachCompleteMsg:
@@ -155,6 +202,7 @@ func (m OrchestratorModel) View() string {
 
 	var b strings.Builder
 	currentY := 0
+	personaIndex := 0 // Track which persona we're rendering
 
 	// Header
 	header := headerStyle.Render("🚀 WildWest Team Orchestrator")
@@ -173,7 +221,9 @@ func (m OrchestratorModel) View() string {
 	// Manager (level 1)
 	manager := m.getSessionByType(session.SessionTypeEngineeringManager)
 	if manager != nil {
-		box, height := m.renderPersonaBox(manager, currentY)
+		isSelected := (personaIndex == m.selectedIndex)
+		box, height := m.renderPersonaBox(manager, currentY, personaIndex, isSelected)
+		personaIndex++
 		b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(box))
 		b.WriteString("\n")
 		currentY += height + 1
@@ -189,7 +239,7 @@ func (m OrchestratorModel) View() string {
 	qaList := m.getSessionsByType(session.SessionTypeQA)
 
 	if architect != nil || len(qaList) > 0 {
-		level2, height := m.renderLevel2(architect, qaList, currentY)
+		level2, height := m.renderLevel2(architect, qaList, currentY, &personaIndex)
 		b.WriteString(level2)
 		currentY += height
 	}
@@ -197,7 +247,7 @@ func (m OrchestratorModel) View() string {
 	// Engineers (level 3)
 	engineers := m.getSessionsByType(session.SessionTypeSoftwareEngineer)
 	if len(engineers) > 0 {
-		engsView, height := m.renderEngineers(engineers, currentY)
+		engsView, height := m.renderEngineers(engineers, currentY, &personaIndex)
 		b.WriteString(engsView)
 		currentY += height
 	}
@@ -205,14 +255,14 @@ func (m OrchestratorModel) View() string {
 	// Interns (level 4)
 	interns := m.getSessionsByType(session.SessionTypeIntern)
 	if len(interns) > 0 {
-		internsView, height := m.renderInterns(interns, currentY)
+		internsView, height := m.renderInterns(interns, currentY, &personaIndex)
 		b.WriteString(internsView)
 		currentY += height
 	}
 
 	// Footer
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("Press 'q' to quit | Click on any persona to attach to their tmux session"))
+	b.WriteString(footerStyle.Render("↑↓←→ or hjkl: navigate | Enter: attach to session | q: quit"))
 	b.WriteString("\n")
 
 	return b.String()
@@ -249,7 +299,7 @@ func (m *OrchestratorModel) getSessionsByType(sessionType session.SessionType) [
 }
 
 // renderPersonaBox renders a single persona box
-func (m *OrchestratorModel) renderPersonaBox(sess *session.Session, currentY int) (string, int) {
+func (m *OrchestratorModel) renderPersonaBox(sess *session.Session, currentY int, personaIndex int, isSelected bool) (string, int) {
 	// Get emoji based on persona type
 	emoji := m.getPersonaEmoji(sess.PersonaType)
 
@@ -270,19 +320,23 @@ func (m *OrchestratorModel) renderPersonaBox(sess *session.Session, currentY int
 	content += fmt.Sprintf("Status: %s %s\n", statusEmoji, sess.Status)
 	content += fmt.Sprintf("Work: %s", currentWork)
 
-	// Choose style based on status
+	// Choose style based on selection and status
 	var style lipgloss.Style
-	switch sess.Status {
-	case "active":
-		style = activeStyle
-	case "completed":
-		style = completedStyle
-	case "failed":
-		style = failedStyle
-	case "stopped":
-		style = stoppedStyle
-	default:
-		style = idleStyle
+	if isSelected {
+		style = selectedStyle
+	} else {
+		switch sess.Status {
+		case "active":
+			style = activeStyle
+		case "completed":
+			style = completedStyle
+		case "failed":
+			style = failedStyle
+		case "stopped":
+			style = stoppedStyle
+		default:
+			style = idleStyle
+		}
 	}
 
 	rendered := style.Render(content)
@@ -301,7 +355,7 @@ func (m *OrchestratorModel) renderPersonaBox(sess *session.Session, currentY int
 }
 
 // renderLevel2 renders architect and QA side by side
-func (m *OrchestratorModel) renderLevel2(architect *session.Session, qaList []*session.Session, currentY int) (string, int) {
+func (m *OrchestratorModel) renderLevel2(architect *session.Session, qaList []*session.Session, currentY int, personaIndex *int) (string, int) {
 	var b strings.Builder
 
 	if architect == nil && len(qaList) == 0 {
@@ -311,7 +365,9 @@ func (m *OrchestratorModel) renderLevel2(architect *session.Session, qaList []*s
 	// Render architect
 	var architectBox string
 	if architect != nil {
-		box, _ := m.renderPersonaBox(architect, currentY)
+		isSelected := (*personaIndex == m.selectedIndex)
+		box, _ := m.renderPersonaBox(architect, currentY, *personaIndex, isSelected)
+		*personaIndex++
 		architectBox = box
 	} else {
 		architectBox = lipgloss.NewStyle().Width(37).Height(5).Render("")
@@ -320,7 +376,9 @@ func (m *OrchestratorModel) renderLevel2(architect *session.Session, qaList []*s
 	// Render QA (show first one if multiple)
 	var qaBox string
 	if len(qaList) > 0 {
-		box, _ := m.renderPersonaBox(qaList[0], currentY)
+		isSelected := (*personaIndex == m.selectedIndex)
+		box, _ := m.renderPersonaBox(qaList[0], currentY, *personaIndex, isSelected)
+		*personaIndex++
 		qaBox = box
 	} else {
 		qaBox = lipgloss.NewStyle().Width(37).Height(5).Render("")
@@ -341,7 +399,7 @@ func (m *OrchestratorModel) renderLevel2(architect *session.Session, qaList []*s
 }
 
 // renderEngineers renders multiple engineers horizontally
-func (m *OrchestratorModel) renderEngineers(engineers []*session.Session, currentY int) (string, int) {
+func (m *OrchestratorModel) renderEngineers(engineers []*session.Session, currentY int, personaIndex *int) (string, int) {
 	if len(engineers) == 0 {
 		return "", 0
 	}
@@ -360,7 +418,9 @@ func (m *OrchestratorModel) renderEngineers(engineers []*session.Session, curren
 		boxes := make([]string, len(rowEngineers))
 
 		for j, eng := range rowEngineers {
-			box, _ := m.renderPersonaBox(eng, currentY)
+			isSelected := (*personaIndex == m.selectedIndex)
+			box, _ := m.renderPersonaBox(eng, currentY, *personaIndex, isSelected)
+			*personaIndex++
 			boxes[j] = box
 		}
 
@@ -379,7 +439,7 @@ func (m *OrchestratorModel) renderEngineers(engineers []*session.Session, curren
 }
 
 // renderInterns renders interns
-func (m *OrchestratorModel) renderInterns(interns []*session.Session, currentY int) (string, int) {
+func (m *OrchestratorModel) renderInterns(interns []*session.Session, currentY int, personaIndex *int) (string, int) {
 	if len(interns) == 0 {
 		return "", 0
 	}
@@ -397,7 +457,9 @@ func (m *OrchestratorModel) renderInterns(interns []*session.Session, currentY i
 		boxes := make([]string, len(rowInterns))
 
 		for j, intern := range rowInterns {
-			box, _ := m.renderPersonaBox(intern, currentY)
+			isSelected := (*personaIndex == m.selectedIndex)
+			box, _ := m.renderPersonaBox(intern, currentY, *personaIndex, isSelected)
+			*personaIndex++
 			boxes[j] = box
 		}
 

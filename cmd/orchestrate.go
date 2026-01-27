@@ -46,7 +46,20 @@ func init() {
 }
 
 func runOrchestrator(cmd *cobra.Command, args []string) error {
-	// Check if we're already inside a tmux session
+	// If TUI mode, run directly without tmux
+	if useTUI {
+		fmt.Println("🎯 Starting Project Manager Orchestrator with TUI...")
+		fmt.Println()
+
+		orch, err := orchestrator.NewOrchestrator(workspaceDir, verbose)
+		if err != nil {
+			return fmt.Errorf("failed to create orchestrator: %w", err)
+		}
+
+		return orch.RunTUI()
+	}
+
+	// Non-TUI mode: check if we're already inside a tmux session
 	if os.Getenv("TMUX") != "" {
 		// Already in tmux, run orchestrator directly
 		fmt.Println("🎯 Starting Project Manager Orchestrator...")
@@ -57,14 +70,10 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to create orchestrator: %w", err)
 		}
 
-		// Run orchestrator - use TUI if flag is set
-		if useTUI {
-			return orch.RunTUI()
-		}
 		return orch.Run()
 	}
 
-	// Not in tmux, spawn orchestrator in a new tmux session
+	// Not in tmux and not TUI, spawn orchestrator in a new tmux session
 	return spawnOrchestratorInTmux()
 }
 
