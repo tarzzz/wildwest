@@ -293,10 +293,14 @@ func teamStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println("Active Team Sessions:")
 	fmt.Println("====================")
 	for _, sess := range sessions {
+		// Get current work
+		currentWork := sm.GetCurrentWork(sess.ID)
+
 		fmt.Printf("\n%s (%s)\n", sess.PersonaName, sess.PersonaType)
 		fmt.Printf("  Session ID: %s\n", sess.ID)
 		fmt.Printf("  Status: %s\n", sess.Status)
 		fmt.Printf("  Started: %s\n", sess.StartTime.Format("2006-01-02 15:04:05"))
+		fmt.Printf("  Current Work: %s\n", currentWork)
 	}
 
 	return nil

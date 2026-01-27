@@ -583,3 +583,80 @@ func (sm *SessionManager) CreateWorkspace(description string) (*Workspace, error
 
 	return workspace, nil
 }
+
+// GetCurrentWork extracts the current task being worked on from tasks.md
+func (sm *SessionManager) GetCurrentWork(sessionID string) string {
+	tasksContent, err := sm.ReadTasks(sessionID)
+	if err != nil {
+		return "No tasks found"
+	}
+
+	// Parse tasks.md to find current work
+	lines := strings.Split(tasksContent, "\n")
+	var currentTask string
+	var currentStatus string
+	inTask := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check for task header
+		if strings.HasPrefix(trimmed, "## Task:") {
+			currentTask = strings.TrimPrefix(trimmed, "## Task:")
+			currentTask = strings.TrimSpace(currentTask)
+			inTask = true
+			currentStatus = ""
+			continue
+		}
+
+		// Check for status line
+		if inTask && strings.HasPrefix(trimmed, "- **Status**:") {
+			currentStatus = strings.TrimPrefix(trimmed, "- **Status**:")
+			currentStatus = strings.TrimSpace(currentStatus)
+
+			// If status is "in progress", return this task immediately
+			if currentStatus == "in progress" {
+				if len(currentTask) > 80 {
+					return currentTask[:77] + "..."
+				}
+				return currentTask
+			}
+		}
+	}
+
+	// If no "in progress" task found, look for first "not started" task
+	inTask = false
+	currentTask = ""
+	currentStatus = ""
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "## Task:") {
+			currentTask = strings.TrimPrefix(trimmed, "## Task:")
+			currentTask = strings.TrimSpace(currentTask)
+			inTask = true
+			currentStatus = ""
+			continue
+		}
+
+		if inTask && strings.HasPrefix(trimmed, "- **Status**:") {
+			currentStatus = strings.TrimPrefix(trimmed, "- **Status**:")
+			currentStatus = strings.TrimSpace(currentStatus)
+
+			if currentStatus == "not started" {
+				if len(currentTask) > 80 {
+					return "Awaiting: " + currentTask[:72] + "..."
+				}
+				return "Awaiting: " + currentTask
+			}
+		}
+	}
+
+	// If all tasks are completed
+	if strings.Contains(tasksContent, "completed") {
+		return "All tasks completed"
+	}
+
+	return "No active tasks"
+}
