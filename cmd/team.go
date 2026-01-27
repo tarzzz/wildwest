@@ -157,6 +157,28 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	fmt.Printf("📁 Workspace: %s\n\n", sm.GetWorkspacePath())
 
 	if autoRun {
+		// If TUI mode is requested, run orchestrator directly in current terminal (blocking)
+		if useTUITeam {
+			fmt.Println("🚀 Starting orchestration daemon with TUI...")
+			fmt.Println("   (Press 'q' to quit the orchestrator)")
+			fmt.Println()
+
+			// Get the path to the current executable
+			executable, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("failed to get executable path: %w", err)
+			}
+
+			// Run orchestrator with TUI in current terminal (blocking)
+			cmd := exec.Command(executable, "orchestrate", "--workspace", workspaceDir, "--tui")
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			return cmd.Run()
+		}
+
+		// Non-TUI mode: spawn in background tmux session
 		fmt.Println("🚀 Starting orchestration daemon...")
 
 		// Create tmux session for orchestrator
@@ -164,9 +186,6 @@ func startTeam(cmd *cobra.Command, args []string) error {
 
 		// Build command: wildwest orchestrate --workspace <workspace>
 		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s", workspaceDir)
-		if useTUITeam {
-			orchestrateCmd += " --tui"
-		}
 
 		// Start tmux session with orchestrator
 		tmuxCmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, orchestrateCmd)

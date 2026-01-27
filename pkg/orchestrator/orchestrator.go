@@ -109,8 +109,10 @@ func (o *Orchestrator) RunTUI() error {
 	model.refreshSessions()
 
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-	_, err := p.Run()
-	return err
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("TUI error: %w", err)
+	}
+	return nil
 }
 
 // scanAndProcess scans for requests and manages sessions
