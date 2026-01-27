@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	useTUI bool
+)
+
 var orchestrateCmd = &cobra.Command{
 	Use:   "orchestrate",
 	Short: "Run the Project Manager orchestrator daemon",
@@ -28,6 +32,7 @@ You can attach to it at any time to monitor progress.
 
 Example:
   wildwest orchestrate --workspace .database
+  wildwest orchestrate --workspace .database --tui  # Interactive TUI
 
   # Then attach to monitor:
   tmux attach -t claude-orchestrator-*`,
@@ -37,6 +42,7 @@ Example:
 func init() {
 	rootCmd.AddCommand(orchestrateCmd)
 	orchestrateCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".database", "workspace directory")
+	orchestrateCmd.Flags().BoolVar(&useTUI, "tui", false, "run orchestrator with interactive TUI")
 }
 
 func runOrchestrator(cmd *cobra.Command, args []string) error {
@@ -51,7 +57,10 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to create orchestrator: %w", err)
 		}
 
-		// Run orchestrator (blocks)
+		// Run orchestrator - use TUI if flag is set
+		if useTUI {
+			return orch.RunTUI()
+		}
 		return orch.Run()
 	}
 
@@ -85,6 +94,9 @@ func spawnOrchestratorInTmux() error {
 	orchestratorCmd := fmt.Sprintf("%s orchestrate --workspace %s", executable, absWorkspace)
 	if verbose {
 		orchestratorCmd += " --verbose"
+	}
+	if useTUI {
+		orchestratorCmd += " --tui"
 	}
 
 	// Create tmux session

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tarzzz/wildwest/pkg/persona"
 	"github.com/tarzzz/wildwest/pkg/session"
 )
@@ -73,6 +74,43 @@ func (o *Orchestrator) Run() error {
 			}
 		}
 	}
+}
+
+// RunTUI starts the orchestrator with interactive TUI
+func (o *Orchestrator) RunTUI() error {
+	// Start cost monitor in background
+	costMonitor := NewCostMonitor(o.sm)
+	go func() {
+		costMonitor.Start()
+	}()
+
+	// Start background goroutine to handle orchestrator logic
+	go func() {
+		ticker := time.NewTicker(o.pollInterval)
+		defer ticker.Stop()
+
+		// Initial scan
+		if err := o.scanAndProcess(); err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️  Error in initial scan: %v\n", err)
+		}
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := o.scanAndProcess(); err != nil {
+					fmt.Fprintf(os.Stderr, "⚠️  Error in scan: %v\n", err)
+				}
+			}
+		}
+	}()
+
+	// Start TUI
+	model := NewOrchestratorModel(o.sm, o.workspacePath)
+	model.refreshSessions()
+
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	_, err := p.Run()
+	return err
 }
 
 // scanAndProcess scans for requests and manages sessions
