@@ -36,10 +36,10 @@ func LoadConfig(path string) (*Config, error) {
 		}
 
 		possiblePaths := []string{
-			filepath.Join(home, ".claude-wrapper.yaml"),
-			filepath.Join(home, ".claude-wrapper.yml"),
-			".claude-wrapper.yaml",
-			".claude-wrapper.yml",
+			filepath.Join(home, ".wildwest.yaml"),
+			filepath.Join(home, ".wildwest.yml"),
+			".wildwest.yaml",
+			".wildwest.yml",
 		}
 
 		for _, p := range possiblePaths {

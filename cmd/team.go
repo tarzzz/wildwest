@@ -153,7 +153,7 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	fmt.Printf("📁 Workspace: %s\n\n", sm.GetWorkspacePath())
 
 	fmt.Println("⚠️  IMPORTANT: Start the orchestrator to spawn Claude instances:")
-	fmt.Printf("   claude-wrapper orchestrate --workspace %s\n\n", workspaceDir)
+	fmt.Printf("   wildwest orchestrate --workspace %s\n\n", workspaceDir)
 
 	fmt.Println("The orchestrator will:")
 	fmt.Println("  1. Spawn Claude instances for Manager and Architect")

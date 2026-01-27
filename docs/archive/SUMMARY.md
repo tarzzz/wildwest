@@ -12,7 +12,7 @@ A comprehensive Go-based wrapper for Claude Code that enables multi-agent team c
 - **Role**: Monitoring and status tracking
 - **Capabilities**: Read all personas' tasks.md and instructions.md
 - **Constraints**: Cannot write to any persona's files
-- **Command**: `claude-wrapper track`
+- **Command**: `wildwest track`
 
 #### Engineering Manager (Level 1 - TOP)
 - **Role**: Project leadership and high-level planning
@@ -92,46 +92,46 @@ Each persona has a tracker that maintains:
 #### Team Management
 ```bash
 # Start a team
-claude-wrapper team start "Build REST API" --engineers 2 --interns 1
+wildwest team start "Build REST API" --engineers 2 --interns 1
 
 # Check team status
-claude-wrapper team status
+wildwest team status
 
 # Stop team
-claude-wrapper team stop
+wildwest team stop
 ```
 
 #### Monitoring
 ```bash
 # Track team progress (Project Manager view)
-claude-wrapper track --workspace .database
+wildwest track --workspace .database
 ```
 
 #### Persona Management
 ```bash
 # List personas
-claude-wrapper persona list
+wildwest persona list
 
 # Show persona details
-claude-wrapper persona show software-engineer
+wildwest persona show software-engineer
 
 # Initialize personas file
-claude-wrapper persona init
+wildwest persona init
 ```
 
 #### Individual Runs
 ```bash
 # Run with a specific persona
-claude-wrapper run --persona software-engineer "Implement auth"
+wildwest run --persona software-engineer "Implement auth"
 
 # Run with environment and persona
-claude-wrapper run --env production --persona solutions-architect "Design caching"
+wildwest run --env production --persona solutions-architect "Design caching"
 ```
 
 ## Project Structure
 
 ```
-claude-wrapper/
+wildwest/
 ├── cmd/                    # CLI commands
 │   ├── root.go            # Root command
 │   ├── run.go             # Run single persona
@@ -162,7 +162,7 @@ claude-wrapper/
 
 ### Starting a Team
 
-1. User runs: `claude-wrapper team start "Build feature X" --engineers 2`
+1. User runs: `wildwest team start "Build feature X" --engineers 2`
 
 2. System creates:
    - Workspace directory (.database/)
@@ -195,7 +195,7 @@ claude-wrapper/
 ### Tracking Progress
 
 ```bash
-$ claude-wrapper track
+$ wildwest track
 
 ═══════════════════════════════════════════════════
            PROJECT STATUS DASHBOARD
@@ -255,29 +255,29 @@ $ claude-wrapper track
 
 ### Small Project
 ```bash
-claude-wrapper team start "Create todo app API"
+wildwest team start "Create todo app API"
 # Uses default: 1 manager, 1 architect, 1 engineer
 ```
 
 ### Medium Project
 ```bash
-claude-wrapper team start --engineers 3 "Migrate to microservices"
+wildwest team start --engineers 3 "Migrate to microservices"
 ```
 
 ### Large Project
 ```bash
-claude-wrapper team start --engineers 4 --interns 2 "Build e-commerce platform"
+wildwest team start --engineers 4 --interns 2 "Build e-commerce platform"
 ```
 
 ### Monitor Progress
 ```bash
 # Watch progress in real-time
-watch -n 10 'claude-wrapper track'
+watch -n 10 'wildwest track'
 ```
 
 ## Configuration Files
 
-### ~/.claude-wrapper.yaml
+### ~/.wildwest.yaml
 ```yaml
 claude_path: "claude"
 environments:

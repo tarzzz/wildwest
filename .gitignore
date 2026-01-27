@@ -20,7 +20,7 @@ go.work
 # Build output
 /bin/
 /dist/
-claude-wrapper
+wildwest
 
 # IDE
 .vscode/
@@ -30,8 +30,8 @@ claude-wrapper
 *~
 
 # Config files (may contain secrets)
-.claude-wrapper.yaml
-.claude-wrapper.yml
+.wildwest.yaml
+.wildwest.yml
 
 # macOS
 .DS_Store

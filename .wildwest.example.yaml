@@ -1,5 +1,5 @@
-# Example configuration file for claude-wrapper
-# Copy this to ~/.claude-wrapper.yaml and customize
+# Example configuration file for wildwest
+# Copy this to ~/.wildwest.yaml and customize
 
 # Default path to claude binary
 claude_path: "claude"

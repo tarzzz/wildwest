@@ -23,7 +23,7 @@ The Project Manager now functions as an **active orchestrator** that manages the
 
 ```bash
 # Create workspace and initial structure
-claude-wrapper team start "Build REST API"
+wildwest team start "Build REST API"
 
 # This creates:
 # - engineering-manager-{timestamp}/
@@ -35,7 +35,7 @@ claude-wrapper team start "Build REST API"
 
 ```bash
 # In a separate terminal
-claude-wrapper orchestrate --workspace .database
+wildwest orchestrate --workspace .database
 
 # The orchestrator:
 # - Spawns Claude for Manager and Architect
@@ -80,16 +80,16 @@ EOF
 
 ```bash
 # List all running instances
-claude-wrapper attach --list
+wildwest attach --list
 
 # Attach to manager (default)
-claude-wrapper attach
+wildwest attach
 
 # Attach to specific session
-claude-wrapper attach software-engineer-1234567890
+wildwest attach software-engineer-1234567890
 
 # Filter by type
-claude-wrapper attach --filter engineer --list
+wildwest attach --filter engineer --list
 ```
 
 ### 5. Automatic Cleanup
@@ -256,7 +256,7 @@ The `persona-instructions.md` includes:
 ### List All Sessions
 
 ```bash
-$ claude-wrapper attach --list
+$ wildwest attach --list
 
 Available Sessions:
 ═══════════════════════════════════════════════════
@@ -285,7 +285,7 @@ Available Sessions:
 ### Attach to Manager (Default)
 
 ```bash
-$ claude-wrapper attach
+$ wildwest attach
 
 🔗 Attaching to session: engineering-manager-1234567890
    Directory: .database/engineering-manager-1234567890
@@ -314,10 +314,10 @@ $ exit  # Returns to main shell
 
 ```bash
 # By session ID
-claude-wrapper attach software-engineer-1234567891
+wildwest attach software-engineer-1234567891
 
 # By filter
-claude-wrapper attach --filter frontend-dev --list
+wildwest attach --filter frontend-dev --list
 ```
 
 ## Complete Example Workflow
@@ -326,11 +326,11 @@ claude-wrapper attach --filter frontend-dev --list
 
 ```bash
 # Terminal 1: Start team
-cd /Users/tarun/plotly/agents
-./bin/claude-wrapper team start "Build blog platform with posts and comments"
+cd .
+./bin/wildwest team start "Build blog platform with posts and comments"
 
 # Terminal 2: Start orchestrator
-./bin/claude-wrapper orchestrate --workspace .database
+./bin/wildwest orchestrate --workspace .database
 ```
 
 Output:
@@ -382,10 +382,10 @@ Orchestrator spawns:
 
 ```bash
 # List sessions
-./bin/claude-wrapper attach --list
+./bin/wildwest attach --list
 
 # Attach to engineer
-./bin/claude-wrapper attach software-engineer-1706012345680
+./bin/wildwest attach software-engineer-1706012345680
 
 # Inside the session, check progress
 $ cat tasks.md
@@ -427,21 +427,21 @@ Orchestrator detects:
 
 ```bash
 # Setup
-claude-wrapper team start "task" [--engineers N] [--interns N]
+wildwest team start "task" [--engineers N] [--interns N]
 
 # Orchestration (run in separate terminal)
-claude-wrapper orchestrate --workspace .database
+wildwest orchestrate --workspace .database
 
 # Monitoring
-claude-wrapper attach --list                    # List all sessions
-claude-wrapper attach                           # Attach to manager
-claude-wrapper attach <session-id>             # Attach to specific
-claude-wrapper attach --filter engineer --list  # Filter by type
-claude-wrapper track                            # Status dashboard
+wildwest attach --list                    # List all sessions
+wildwest attach                           # Attach to manager
+wildwest attach <session-id>             # Attach to specific
+wildwest attach --filter engineer --list  # Filter by type
+wildwest track                            # Status dashboard
 
 # Traditional (still works)
-claude-wrapper team status                      # Check status
-claude-wrapper team stop                        # Stop all
+wildwest team status                      # Check status
+wildwest team stop                        # Stop all
 ```
 
 ## Directory Naming Conventions

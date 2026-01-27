@@ -164,9 +164,9 @@ func listSessions(sessions []*session.Session, filter string) error {
 	displaySessionType(byType, session.SessionTypeIntern, "INTERNS")
 
 	fmt.Println("\nTo attach to a session:")
-	fmt.Println("  claude-wrapper attach <session-id>")
+	fmt.Println("  wildwest attach <session-id>")
 	fmt.Println("\nTo attach to manager (default):")
-	fmt.Println("  claude-wrapper attach")
+	fmt.Println("  wildwest attach")
 
 	return nil
 }

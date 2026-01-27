@@ -92,7 +92,7 @@ Personas communicate via JSON messages in the `messages/` directory:
 
 ```bash
 # Start a basic team
-claude-wrapper team start "Build a user authentication system"
+wildwest team start "Build a user authentication system"
 ```
 
 This creates:
@@ -104,7 +104,7 @@ This creates:
 
 ```bash
 # Start a full team
-claude-wrapper team start \
+wildwest team start \
   --engineers 3 \
   --interns 2 \
   "Migrate monolithic app to microservices"
@@ -144,10 +144,10 @@ Workflow:
 ### 1. Clear Task Definition
 ```bash
 # Good: Specific and actionable
-claude-wrapper team start "Build REST API with CRUD operations for User, Post, and Comment models using Express and PostgreSQL"
+wildwest team start "Build REST API with CRUD operations for User, Post, and Comment models using Express and PostgreSQL"
 
 # Bad: Too vague
-claude-wrapper team start "make an API"
+wildwest team start "make an API"
 ```
 
 ### 2. Right Team Size
@@ -158,7 +158,7 @@ claude-wrapper team start "make an API"
 ### 3. Monitor Progress
 ```bash
 # Check status regularly
-claude-wrapper team status
+wildwest team status
 
 # Watch the workspace
 watch -n 5 'ls -la .database/outputs/*/'
@@ -180,20 +180,20 @@ You can customize persona behavior:
 
 ```bash
 # Initialize personas file
-claude-wrapper persona init
+wildwest persona init
 
 # Edit ~/.claude-personas.yaml
 # Modify instructions, capabilities, or constraints
 
 # Your custom personas will be used automatically
-claude-wrapper team start "your task"
+wildwest team start "your task"
 ```
 
 ## Advanced Usage
 
 ### Custom Workspace Location
 ```bash
-claude-wrapper team start \
+wildwest team start \
   --workspace ./project-workspace \
   "Build feature X"
 ```
@@ -201,11 +201,11 @@ claude-wrapper team start \
 ### Sequential Team Operations
 ```bash
 # Phase 1: Design
-claude-wrapper run --persona solutions-architect \
+wildwest run --persona solutions-architect \
   "Design architecture for feature X" > .database/shared/architecture.md
 
 # Phase 2: Implementation
-claude-wrapper team start --engineers 2 \
+wildwest team start --engineers 2 \
   "Implement feature X based on .database/shared/architecture.md"
 ```
 
@@ -230,7 +230,7 @@ claude-wrapper team start --engineers 2 \
 
 ### Example 1: API Development
 ```bash
-claude-wrapper team start "Create a REST API for a todo app with user authentication, CRUD operations, and SQLite database"
+wildwest team start "Create a REST API for a todo app with user authentication, CRUD operations, and SQLite database"
 ```
 
 Expected outputs:
@@ -241,7 +241,7 @@ Expected outputs:
 
 ### Example 2: Code Migration
 ```bash
-claude-wrapper team start --engineers 2 --interns 1 \
+wildwest team start --engineers 2 --interns 1 \
   "Migrate Python 2.7 codebase to Python 3.11"
 ```
 
@@ -253,7 +253,7 @@ Expected flow:
 
 ### Example 3: Bug Investigation
 ```bash
-claude-wrapper team start --engineers 2 \
+wildwest team start --engineers 2 \
   "Debug and fix memory leak in production application"
 ```
 

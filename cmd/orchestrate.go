@@ -27,7 +27,7 @@ The orchestrator runs in its own tmux session in the background.
 You can attach to it at any time to monitor progress.
 
 Example:
-  claude-wrapper orchestrate --workspace .database
+  wildwest orchestrate --workspace .database
 
   # Then attach to monitor:
   tmux attach -t claude-orchestrator-*`,

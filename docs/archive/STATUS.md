@@ -51,16 +51,16 @@
 - ✅ State tracking with byte-position references
 
 #### CLI Commands
-- ✅ `claude-wrapper team start` - Launch team sessions
-- ✅ `claude-wrapper team status` - Check active sessions
-- ✅ `claude-wrapper team stop` - Stop all sessions
-- ✅ `claude-wrapper track` - Project Manager view
-- ✅ `claude-wrapper persona list` - List personas
-- ✅ `claude-wrapper persona show` - Show persona details
-- ✅ `claude-wrapper persona init` - Initialize config
-- ✅ `claude-wrapper run` - Run single persona
-- ✅ `claude-wrapper expand` - Expand prompts
-- ✅ `claude-wrapper list` - List environments
+- ✅ `wildwest team start` - Launch team sessions
+- ✅ `wildwest team status` - Check active sessions
+- ✅ `wildwest team stop` - Stop all sessions
+- ✅ `wildwest track` - Project Manager view
+- ✅ `wildwest persona list` - List personas
+- ✅ `wildwest persona show` - Show persona details
+- ✅ `wildwest persona init` - Initialize config
+- ✅ `wildwest run` - Run single persona
+- ✅ `wildwest expand` - Expand prompts
+- ✅ `wildwest list` - List environments
 
 #### Workspace Structure
 - ✅ Separate directory per persona instance
@@ -124,9 +124,9 @@
 ## 📁 File Structure
 
 ```
-/Users/tarun/plotly/agents/
+./
 ├── bin/
-│   └── claude-wrapper          (10MB binary)
+│   └── wildwest          (10MB binary)
 ├── cmd/
 │   ├── root.go
 │   ├── run.go
@@ -155,7 +155,7 @@
 ├── QUICKSTART.md
 ├── SUMMARY.md
 ├── STATUS.md
-├── .claude-wrapper.example.yaml
+├── .wildwest.example.yaml
 └── .claude-personas.example.yaml
 ```
 
@@ -171,17 +171,17 @@ The system is **production-ready** for:
 
 ```bash
 # Build
-cd /Users/tarun/plotly/agents
+cd .
 make build
 
 # Start a team
-./bin/claude-wrapper team start "Build REST API" --engineers 2
+./bin/wildwest team start "Build REST API" --engineers 2
 
 # Monitor progress
-./bin/claude-wrapper track
+./bin/wildwest track
 
 # Check status
-./bin/claude-wrapper team status
+./bin/wildwest team status
 ```
 
 ## 🔄 Next Steps (Optional Enhancements)

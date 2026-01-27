@@ -4,7 +4,7 @@
 
 ### Step 1: View Available Names
 ```bash
-$ ./bin/claude-wrapper names
+$ ./bin/wildwest names
 
 Available Persona Names
 ═══════════════════════════════════════════════════
@@ -27,7 +27,7 @@ Total: 130 names across 7 categories
 ### Step 2: Start a Team
 
 ```bash
-$ ./bin/claude-wrapper team start "Build a blog platform with posts and comments" --engineers 2
+$ ./bin/wildwest team start "Build a blog platform with posts and comments" --engineers 2
 
 Created workspace: ws-1706012345
 Workspace path: .database
@@ -50,14 +50,14 @@ Creating 2 Software Engineer director(ies) (Level 3)...
 📁 Workspace: .database
 
 ⚠️  IMPORTANT: Start the orchestrator to spawn Claude instances:
-   claude-wrapper orchestrate --workspace .database
+   wildwest orchestrate --workspace .database
 ```
 
 ### Step 3: Start Orchestrator
 
 ```bash
 # Terminal 2
-$ ./bin/claude-wrapper orchestrate --workspace .database
+$ ./bin/wildwest orchestrate --workspace .database
 
 🎯 Project Manager Orchestrator Started
    Workspace: .database
@@ -80,7 +80,7 @@ $ ./bin/claude-wrapper orchestrate --workspace .database
 
 ```bash
 # Terminal 3
-$ ./bin/claude-wrapper attach --list
+$ ./bin/wildwest attach --list
 
 Available Sessions:
 ═══════════════════════════════════════════════════
@@ -125,7 +125,7 @@ Available Sessions:
 ### Step 5: Attach to Kant (Manager)
 
 ```bash
-$ ./bin/claude-wrapper attach
+$ ./bin/wildwest attach
 
 🔗 Attaching to session: engineering-manager-1706012345678
    Directory: .database/engineering-manager-1706012345678
@@ -162,7 +162,7 @@ $ exit  # Back to main shell
 Kant (Manager) decides to request another engineer:
 
 ```bash
-$ ./bin/claude-wrapper attach  # Attach to Kant
+$ ./bin/wildwest attach  # Attach to Kant
 
 # Inside Kant's session
 $ mkdir ../software-engineer-request-frontend-specialist
@@ -198,7 +198,7 @@ Orchestrator detects and spawns:
 ### Step 7: Track Progress
 
 ```bash
-$ ./bin/claude-wrapper track
+$ ./bin/wildwest track
 
 ═══════════════════════════════════════════════════
            PROJECT STATUS DASHBOARD
@@ -286,7 +286,7 @@ Overall Completion: 28.6%
 Einstein needs help with tests:
 
 ```bash
-$ ./bin/claude-wrapper attach software-engineer-1706012345680
+$ ./bin/wildwest attach software-engineer-1706012345680
 
 # Inside Einstein's session
 $ mkdir ../intern-request-backend-tester
@@ -355,7 +355,7 @@ Interns:
 
 ```bash
 # Start team
-claude-wrapper team start "Build complete e-commerce platform" --engineers 4
+wildwest team start "Build complete e-commerce platform" --engineers 4
 
 Team Created:
 - Manager: plato
@@ -399,22 +399,22 @@ Final Team:
 
 ```bash
 # View names
-claude-wrapper names
+wildwest names
 
 # Start team (auto-named)
-claude-wrapper team start "task" --engineers N --interns N
+wildwest team start "task" --engineers N --interns N
 
 # Orchestrate
-claude-wrapper orchestrate --workspace .database
+wildwest orchestrate --workspace .database
 
 # List sessions (with names)
-claude-wrapper attach --list
+wildwest attach --list
 
 # Attach by default (manager)
-claude-wrapper attach
+wildwest attach
 
 # Track progress (with names)
-claude-wrapper track
+wildwest track
 ```
 
 ## Name Categories by Role

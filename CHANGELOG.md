@@ -18,7 +18,7 @@
   - Engineers → Scientists or Inventors
   - Interns → Writers or Explorers
 
-- **New Command**: `claude-wrapper names`
+- **New Command**: `wildwest names`
   - Lists all 130 available names by category
   - Shows assignment strategy
 
@@ -57,13 +57,13 @@ Creating Solutions Architect directory (Level 2)...
 - **Automatic Cleanup**: Completed sessions auto-archived
 
 ### Added
-- **New Command**: `claude-wrapper orchestrate`
+- **New Command**: `wildwest orchestrate`
   - Daemon mode for managing Claude instances
   - Watches for spawn requests
   - Monitors running processes
   - Auto-archives completed sessions
 
-- **New Command**: `claude-wrapper attach [session-id]`
+- **New Command**: `wildwest attach [session-id]`
   - List all running sessions
   - Attach to interactive shell
   - Filter by persona type
@@ -110,12 +110,12 @@ Creating Solutions Architect directory (Level 2)...
 - Interns (Level 4, multiple)
 
 ### Commands
-- `claude-wrapper team start` - Start team sessions
-- `claude-wrapper team status` - Check status
-- `claude-wrapper team stop` - Stop all
-- `claude-wrapper track` - Status dashboard
-- `claude-wrapper persona list` - List personas
-- `claude-wrapper run` - Run single persona
+- `wildwest team start` - Start team sessions
+- `wildwest team status` - Check status
+- `wildwest team stop` - Stop all
+- `wildwest track` - Status dashboard
+- `wildwest persona list` - List personas
+- `wildwest run` - Run single persona
 
 ### Workspace
 - Directory per persona

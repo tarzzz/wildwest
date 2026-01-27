@@ -53,7 +53,7 @@ Names are assigned based on persona type:
 
 ### View All Names
 ```bash
-claude-wrapper names
+wildwest names
 ```
 
 Output:
@@ -75,7 +75,7 @@ Total: 130 names across 7 categories
 
 When creating a team:
 ```bash
-$ claude-wrapper team start "Build REST API"
+$ wildwest team start "Build REST API"
 
 Creating Engineering Manager directory (Level 1)...
   Name: socrates
@@ -160,7 +160,7 @@ Interns:
 
 ```bash
 # List with names
-$ claude-wrapper attach --list
+$ wildwest attach --list
 
 ╔══════════════════════════════════════════════════╗
 ║  SOFTWARE ENGINEERS
@@ -175,7 +175,7 @@ $ claude-wrapper attach --list
    Status: active
 
 # Attach by name
-$ claude-wrapper attach software-engineer-1706012345680
+$ wildwest attach software-engineer-1706012345680
 
 # Or remember: "Einstein is working on backend"
 ```
@@ -209,7 +209,7 @@ mkdir .database/software-engineer-request-backend-specialist
 
 ### Team Start Output
 ```bash
-$ claude-wrapper team start "Build blog platform" --engineers 2
+$ wildwest team start "Build blog platform" --engineers 2
 
 Created workspace: ws-1706012345
 Workspace path: .database
@@ -231,7 +231,7 @@ Creating 2 Software Engineer director(ies) (Level 3)...
 
 ### Orchestrator Output
 ```bash
-$ claude-wrapper orchestrate
+$ wildwest orchestrate
 
 🎯 Project Manager Orchestrator Started
    Workspace: .database
@@ -252,7 +252,7 @@ $ claude-wrapper orchestrate
 
 ### Track Output
 ```bash
-$ claude-wrapper track
+$ wildwest track
 
 ═══════════════════════════════════════════════════
            PROJECT STATUS DASHBOARD

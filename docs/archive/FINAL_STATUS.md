@@ -23,7 +23,7 @@
 
 #### 1. Orchestrator System ⭐
 ```bash
-claude-wrapper orchestrate --workspace .database
+wildwest orchestrate --workspace .database
 ```
 
 **Capabilities:**
@@ -53,16 +53,16 @@ echo "instructions" > .database/intern-request-{name}/instructions.md
 #### 3. Attach to Sessions 🔗
 ```bash
 # List all running sessions
-claude-wrapper attach --list
+wildwest attach --list
 
 # Attach to manager (default)
-claude-wrapper attach
+wildwest attach
 
 # Attach to specific session
-claude-wrapper attach software-engineer-1234567890
+wildwest attach software-engineer-1234567890
 
 # Filter by type
-claude-wrapper attach --filter engineer --list
+wildwest attach --filter engineer --list
 ```
 
 **Features:**
@@ -130,20 +130,20 @@ Software Engineers
 
 ```bash
 # Orchestration
-claude-wrapper orchestrate [--workspace DIR]
+wildwest orchestrate [--workspace DIR]
 
 # Attach to sessions
-claude-wrapper attach [session-id]
-claude-wrapper attach --list
-claude-wrapper attach --filter TYPE --list
+wildwest attach [session-id]
+wildwest attach --list
+wildwest attach --filter TYPE --list
 
 # Team management (updated)
-claude-wrapper team start "task" [--engineers N] [--interns N]
-claude-wrapper team status
-claude-wrapper team stop
+wildwest team start "task" [--engineers N] [--interns N]
+wildwest team status
+wildwest team stop
 
 # Monitoring
-claude-wrapper track
+wildwest track
 ```
 
 ### Workflow Changes
@@ -277,22 +277,22 @@ Successfully refactored from static team management to **dynamic orchestrator-ba
 ✅ Resource-efficient operation
 
 **Version**: 2.0 (Orchestrator Edition)
-**Binary**: `/Users/tarun/plotly/agents/bin/claude-wrapper` (10MB)
+**Binary**: `./bin/wildwest` (10MB)
 **Status**: ✅ Complete and Ready for Testing
 
 ## Quick Start (v2.0)
 
 ```bash
 # Terminal 1: Create team structure
-cd /Users/tarun/plotly/agents
-./bin/claude-wrapper team start "Build REST API"
+cd .
+./bin/wildwest team start "Build REST API"
 
 # Terminal 2: Start orchestrator
-./bin/claude-wrapper orchestrate --workspace .database
+./bin/wildwest orchestrate --workspace .database
 
 # Terminal 3: Monitor and interact
-./bin/claude-wrapper attach --list
-./bin/claude-wrapper attach  # Attach to manager
+./bin/wildwest attach --list
+./bin/wildwest attach  # Attach to manager
 ```
 
 The system is now ready for real-world testing with the new dynamic architecture! 🎉

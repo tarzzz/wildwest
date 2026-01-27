@@ -1,6 +1,12 @@
 # WildWest
 
-A flexible Go wrapper for Claude Code that enables running Claude in custom environments with custom specifications, including multi-agent team collaboration.
+A Go wrapper for Claude Code that enables running Claude in multi-agent environments. 
+Quick guide:
+```
+wildwest team start "Build a REST API for user management" --engineers 2
+wildwest orchestrate --workspace .database
+```
+
 
 ## Features
 

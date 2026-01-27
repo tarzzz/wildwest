@@ -1,9 +1,9 @@
+
 # Quick Start Guide
 
 ## Installation
 
 ```bash
-cd /Users/tarun/plotly/agents
 make build
 make install  # Optional: installs to $GOPATH/bin
 ```
@@ -14,7 +14,7 @@ make install  # Optional: installs to $GOPATH/bin
 
 ```bash
 # Terminal 1: Create workspace and initial personas
-./bin/claude-wrapper team start "Build a REST API for a blog with posts and comments"
+./bin/wildwest team start "Build a REST API for a blog with posts and comments"
 ```
 
 This creates directories for:
@@ -26,7 +26,7 @@ This creates directories for:
 
 ```bash
 # Terminal 2: Start the orchestrator daemon
-./bin/claude-wrapper orchestrate --workspace .database
+./bin/wildwest orchestrate --workspace .database
 ```
 
 The orchestrator will:
@@ -39,12 +39,12 @@ The orchestrator will:
 
 ```bash
 # Terminal 3: Monitor progress
-./bin/claude-wrapper attach --list       # List all sessions
-./bin/claude-wrapper attach               # Attach to manager
-./bin/claude-wrapper track               # Status dashboard
+./bin/wildwest attach --list       # List all sessions
+./bin/wildwest attach               # Attach to manager
+./bin/wildwest track               # Status dashboard
 
 # Or watch in real-time
-watch -n 5 './bin/claude-wrapper track'
+watch -n 5 './bin/wildwest track'
 ```
 
 You'll see:
@@ -90,7 +90,7 @@ cat .database/engineering-manager-*/tracker.json
 
 ```bash
 # Attach to manager
-./bin/claude-wrapper attach
+./bin/wildwest attach
 
 # Inside manager's session, request an engineer
 $ mkdir ../software-engineer-request-backend-dev
@@ -107,7 +107,7 @@ EOF
 
 ```bash
 # Attach to engineer
-./bin/claude-wrapper attach software-engineer-1234567890
+./bin/wildwest attach software-engineer-1234567890
 
 # Request an intern
 $ mkdir ../intern-request-test-writer
@@ -137,7 +137,7 @@ EOF
 ### Run as Engineering Manager
 
 ```bash
-./bin/claude-wrapper run \
+./bin/wildwest run \
   --persona engineering-manager \
   "Analyze requirements for user authentication system"
 ```
@@ -145,7 +145,7 @@ EOF
 ### Run as Solutions Architect
 
 ```bash
-./bin/claude-wrapper run \
+./bin/wildwest run \
   --persona solutions-architect \
   "Design microservices architecture for scaling to 1M users"
 ```
@@ -153,7 +153,7 @@ EOF
 ### Run as Software Engineer
 
 ```bash
-./bin/claude-wrapper run \
+./bin/wildwest run \
   --persona software-engineer \
   "Implement JWT authentication middleware in Go"
 ```
@@ -161,7 +161,7 @@ EOF
 ### Run as Intern
 
 ```bash
-./bin/claude-wrapper run \
+./bin/wildwest run \
   --persona intern \
   "Write unit tests for the authentication middleware"
 ```
@@ -237,7 +237,7 @@ EOF
 The `track` command acts as a Project Manager persona:
 
 ```bash
-./bin/claude-wrapper track
+./bin/wildwest track
 
 # Output shows:
 # - Active team members
@@ -312,16 +312,16 @@ If a persona disconnects and reconnects, it reads from `instructions_last_positi
 ### 1. Use Descriptive Task Descriptions
 ```bash
 # Good
-claude-wrapper team start "Build REST API with JWT auth, CRUD for posts/comments, PostgreSQL"
+wildwest team start "Build REST API with JWT auth, CRUD for posts/comments, PostgreSQL"
 
 # Less effective
-claude-wrapper team start "make an API"
+wildwest team start "make an API"
 ```
 
 ### 2. Monitor Regularly
 ```bash
 # Set up a watch window
-watch -n 10 './bin/claude-wrapper track'
+watch -n 10 './bin/wildwest track'
 ```
 
 ### 3. Review Intermediate Outputs
@@ -340,7 +340,7 @@ cat .database/solutions-architect-*/system-design.md
 ### No Output in Persona Directories
 - Check if Claude is running: `ps aux | grep claude`
 - Verify workspace path: `ls -la .database/`
-- Check session status: `./bin/claude-wrapper team status`
+- Check session status: `./bin/wildwest team status`
 
 ### Personas Not Communicating
 - Verify instructions.md exists: `ls .database/*/instructions.md`
@@ -349,20 +349,20 @@ cat .database/solutions-architect-*/system-design.md
 
 ### Tasks Not Updating
 - Each persona only updates their own tasks.md
-- Check if persona is active: `./bin/claude-wrapper team status`
+- Check if persona is active: `./bin/wildwest team status`
 - Review tracker to see if persona is reading
 
 ## Next Steps
 
 1. **Customize Personas**:
    ```bash
-   ./bin/claude-wrapper persona init
+   ./bin/wildwest persona init
    # Edit ~/.claude-personas.yaml
    ```
 
 2. **Configure Environments**:
    ```bash
-   # Create ~/.claude-wrapper.yaml
+   # Create ~/.wildwest.yaml
    # Add custom environments
    ```
 
