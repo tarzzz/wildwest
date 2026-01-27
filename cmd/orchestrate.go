@@ -60,6 +60,11 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 }
 
 func spawnOrchestratorInTmux() error {
+	// Pre-flight checks
+	if err := checkClaudeAvailability(); err != nil {
+		return err
+	}
+
 	// Get absolute path to workspace
 	absWorkspace, err := filepath.Abs(workspaceDir)
 	if err != nil {
@@ -108,6 +113,45 @@ func spawnOrchestratorInTmux() error {
 	fmt.Println("  - Monitor session health")
 	fmt.Println("  - Handle spawn requests")
 	fmt.Println("  - Archive completed sessions")
+
+	return nil
+}
+
+// checkClaudeAvailability verifies Claude is installed and user is logged in
+func checkClaudeAvailability() error {
+	fmt.Println("🔍 Checking Claude availability...")
+
+	// Get claude binary path (respects CLAUDE_BIN env var)
+	claudeBin := os.Getenv("CLAUDE_BIN")
+	if claudeBin == "" {
+		claudeBin = "claude"
+	}
+
+	// Check if claude binary exists
+	_, err := exec.LookPath(claudeBin)
+	if err != nil {
+		return fmt.Errorf("❌ Claude binary not found: %s\n\nPlease ensure Claude Code is installed and in your PATH.\nAlternatively, set CLAUDE_BIN environment variable to point to the claude binary.\n\nInstall Claude Code: https://claude.ai/code", claudeBin)
+	}
+
+	fmt.Printf("   ✓ Claude binary found: %s\n", claudeBin)
+
+	// Check if user is logged in by running a simple prompt
+	fmt.Println("   Checking authentication...")
+	cmd := exec.Command(claudeBin, "-p", "return the word 'authenticated' and nothing else")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return fmt.Errorf("❌ Failed to execute Claude command: %w\n\nPlease ensure you are logged in to Claude Code.\nRun: %s login", err, claudeBin)
+	}
+
+	// Check if output contains authentication error messages
+	outputStr := string(output)
+	if len(outputStr) == 0 {
+		return fmt.Errorf("❌ Claude returned empty output. Please ensure you are logged in.\nRun: %s login", claudeBin)
+	}
+
+	fmt.Println("   ✓ Authentication verified")
+	fmt.Println()
 
 	return nil
 }
