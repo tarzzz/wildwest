@@ -17,6 +17,7 @@ var (
 	numEngineers     int
 	numInterns       int
 	teamTask         string
+	autoRun          bool
 )
 
 var teamCmd = &cobra.Command{
@@ -54,6 +55,7 @@ func init() {
 	teamStartCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".database", "workspace directory for team collaboration")
 	teamStartCmd.Flags().IntVar(&numEngineers, "engineers", 1, "number of software engineer sessions")
 	teamStartCmd.Flags().IntVar(&numInterns, "interns", 0, "number of intern sessions")
+	teamStartCmd.Flags().BoolVar(&autoRun, "run", false, "automatically start orchestration daemon after team creation")
 }
 
 func startTeam(cmd *cobra.Command, args []string) error {
@@ -152,14 +154,46 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	fmt.Println("✅ Team structure created successfully!")
 	fmt.Printf("📁 Workspace: %s\n\n", sm.GetWorkspacePath())
 
-	fmt.Println("⚠️  IMPORTANT: Start the orchestrator to spawn Claude instances:")
-	fmt.Printf("   wildwest orchestrate --workspace %s\n\n", workspaceDir)
+	if autoRun {
+		fmt.Println("🚀 Starting orchestration daemon...")
 
-	fmt.Println("The orchestrator will:")
-	fmt.Println("  1. Spawn Claude instances for Manager and Architect")
-	fmt.Println("  2. Watch for new engineer/intern requests")
-	fmt.Println("  3. Manage the team lifecycle")
-	fmt.Println("  4. Terminate completed sessions")
+		// Create tmux session for orchestrator
+		sessionName := fmt.Sprintf("wildwest-orchestrator-%d", time.Now().Unix())
+
+		// Build command: wildwest orchestrate --workspace <workspace>
+		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s", workspaceDir)
+
+		// Start tmux session with orchestrator
+		tmuxCmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, orchestrateCmd)
+		if err := tmuxCmd.Run(); err != nil {
+			fmt.Printf("⚠️  Warning: Failed to start orchestrator automatically: %v\n", err)
+			fmt.Printf("Please run manually: wildwest orchestrate --workspace %s\n", workspaceDir)
+			return nil
+		}
+
+		fmt.Printf("✅ Orchestrator started in tmux session: %s\n", sessionName)
+		fmt.Printf("   Attach with: tmux attach -t %s\n\n", sessionName)
+
+		// Give orchestrator time to initialize
+		time.Sleep(500 * time.Millisecond)
+
+		fmt.Println("🎉 Team is running! The orchestrator will:")
+		fmt.Println("  1. Spawn Claude instances for all personas")
+		fmt.Println("  2. Watch for new spawn requests")
+		fmt.Println("  3. Manage the team lifecycle")
+		fmt.Println("  4. Terminate completed sessions")
+		fmt.Println()
+		fmt.Printf("📊 View status: wildwest team status --workspace %s\n", workspaceDir)
+	} else {
+		fmt.Println("⚠️  IMPORTANT: Start the orchestrator to spawn Claude instances:")
+		fmt.Printf("   wildwest orchestrate --workspace %s\n\n", workspaceDir)
+
+		fmt.Println("The orchestrator will:")
+		fmt.Println("  1. Spawn Claude instances for Manager and Architect")
+		fmt.Println("  2. Watch for new engineer/intern requests")
+		fmt.Println("  3. Manage the team lifecycle")
+		fmt.Println("  4. Terminate completed sessions")
+	}
 
 	return nil
 }

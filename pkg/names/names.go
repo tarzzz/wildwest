@@ -79,6 +79,12 @@ var (
 		"cousteau", "gagarin", "earhart", "polo", "livingstone",
 	}
 
+	// Quality & Testing Experts
+	QualityExperts = []string{
+		"deming", "shewhart", "juran", "crosby", "ishikawa",
+		"taguchi", "feigenbaum", "ohno", "imai", "hopper",
+	}
+
 	// All names combined
 	AllNames = []string{}
 )
@@ -92,6 +98,7 @@ func init() {
 	AllNames = append(AllNames, Philosophers...)
 	AllNames = append(AllNames, Inventors...)
 	AllNames = append(AllNames, Explorers...)
+	AllNames = append(AllNames, QualityExperts...)
 }
 
 // GetRandomName returns a random unused name
@@ -135,6 +142,8 @@ func (ng *NameGenerator) GetNameByCategory(category string) string {
 		pool = Inventors
 	case "explorer", "explorers":
 		pool = Explorers
+	case "qa", "quality", "tester", "testers":
+		pool = QualityExperts
 	default:
 		pool = AllNames
 	}
@@ -182,6 +191,9 @@ func (ng *NameGenerator) GetNameForPersona(personaType string) string {
 			return ng.GetNameByCategory("writer")
 		}
 		return ng.GetNameByCategory("explorer")
+	} else if strings.Contains(personaType, "qa") {
+		// QA gets quality expert names
+		return ng.GetNameByCategory("qa")
 	}
 
 	return ng.GetRandomName()
@@ -215,13 +227,14 @@ func (ng *NameGenerator) IsAvailable(name string) bool {
 // GetNameList returns all available names by category
 func GetNameList() map[string][]string {
 	return map[string][]string{
-		"Scientists":   Scientists,
-		"Artists":      Artists,
-		"Musicians":    Musicians,
-		"Writers":      Writers,
-		"Philosophers": Philosophers,
-		"Inventors":    Inventors,
-		"Explorers":    Explorers,
+		"Scientists":     Scientists,
+		"Artists":        Artists,
+		"Musicians":      Musicians,
+		"Writers":        Writers,
+		"Philosophers":   Philosophers,
+		"Inventors":      Inventors,
+		"Explorers":      Explorers,
+		"QualityExperts": QualityExperts,
 	}
 }
 
