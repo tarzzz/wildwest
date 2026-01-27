@@ -1,0 +1,58 @@
+# Example configuration file for claude-wrapper
+# Copy this to ~/.claude-wrapper.yaml and customize
+
+# Default path to claude binary
+claude_path: "claude"
+
+# Define custom environments
+environments:
+  # Example: Development environment
+  dev:
+    description: "Development environment with verbose logging"
+    working_dir: "."
+    env_vars:
+      DEBUG: "true"
+      LOG_LEVEL: "debug"
+    default_specs:
+      - "Use detailed comments"
+      - "Add logging statements"
+      - "Prefer readability over optimization"
+    pre_commands:
+      - "echo 'Starting development mode'"
+
+  # Example: Production environment
+  prod:
+    description: "Production environment with optimizations"
+    env_vars:
+      DEBUG: "false"
+      LOG_LEVEL: "error"
+    default_specs:
+      - "Optimize for performance"
+      - "Minimize dependencies"
+      - "Add comprehensive error handling"
+      - "Include security checks"
+
+  # Example: Testing environment
+  test:
+    description: "Testing environment"
+    default_specs:
+      - "Generate comprehensive unit tests"
+      - "Include edge cases"
+      - "Add integration tests"
+      - "Use mocking where appropriate"
+
+  # Example: Documentation environment
+  docs:
+    description: "Documentation generation environment"
+    default_specs:
+      - "Generate detailed documentation"
+      - "Include examples"
+      - "Add API documentation"
+      - "Create user guides"
+
+# Reusable prompt templates (future feature)
+templates:
+  refactor: "Refactor the code to improve readability and maintainability without changing functionality"
+  optimize: "Analyze and optimize the code for better performance"
+  debug: "Debug and fix issues in the code, explaining the root cause"
+  test: "Generate comprehensive tests including edge cases"
