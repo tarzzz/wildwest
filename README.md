@@ -2,26 +2,27 @@
 
 A Go wrapper for Claude Code that enables running Claude in multi-agent environments. 
 Quick guide:
+
 ```
 wildwest team start "Build a REST API for user management" --engineers 2
 wildwest orchestrate --workspace .database
+# Grab the tmux session ID and run:
+tmux attach -t claude-orchestrator-*
 ```
 
+**How it works:** The orchestrator spawns multiple agents corresponding to the individual persona (Manager, Architect, Software Engineer, Intern etc.) and they work with each other to accomplish the task at hand.
+Some of the personas have capabilities to assign tasks and some of the personas has capabilities to add additional resources (claude sessions) and provide instructions to them.
+
+**Disclaimer:** Not ready for production usage.
 
 ## Features
 
 - **Multi-Agent Team System**: Hierarchical team of Claude personas working together
 - **Tmux Integration**: Each persona runs in persistent background tmux sessions
-- **Automatic Monitoring**: Background tasks check for new instructions every 5 seconds
 - **Dynamic Team Scaling**: Personas can request additional engineers/interns as needed
 - **Real-time Status Tracking**: View running/stopped/completed sessions at any time
 - **Cost Tracking**: Monitor token usage and costs across all personas in real-time
-- **Named Personas**: 130+ historical figures (scientists, artists, musicians, etc.)
-- **File-based Communication**: Personas coordinate via instructions.md and tasks.md
 - **Session Management**: Attach/detach from any session, automatic archival on completion
-- **Custom Environments**: Define different environments with specific configurations
-- **Prompt Expansion**: Expand minimal prompts into detailed instructions using Claude
-- **Pre/Post Commands**: Execute commands before and after Claude runs
 - **4 Persona Types**: Engineering Manager, Solutions Architect, Software Engineer, Intern
 
 ## Installation
@@ -42,58 +43,6 @@ go install
   ```bash
   export CLAUDE_BIN=/path/to/custom/claude
   ```
-
-### Configuration File
-
-Create a configuration file at `~/.wildwest.yaml`:
-
-```yaml
-# Default path to claude binary (overridden by CLAUDE_BIN env var)
-claude_path: "claude"
-
-# Define custom environments
-environments:
-  # Development environment
-  development:
-    description: "Development environment with debugging enabled"
-    working_dir: "/path/to/project"
-    env_vars:
-      DEBUG: "true"
-      LOG_LEVEL: "debug"
-    default_specs:
-      - "Use detailed logging"
-      - "Prefer readable code over performance"
-    pre_commands:
-      - "echo 'Starting development session'"
-    post_commands:
-      - "echo 'Development session complete'"
-
-  # Production environment
-  production:
-    description: "Production environment with optimizations"
-    working_dir: "/path/to/production"
-    env_vars:
-      DEBUG: "false"
-      LOG_LEVEL: "error"
-    default_specs:
-      - "Optimize for performance"
-      - "Include error handling"
-      - "Add comprehensive tests"
-
-  # Testing environment
-  testing:
-    description: "Testing environment"
-    working_dir: "/path/to/tests"
-    default_specs:
-      - "Generate unit tests"
-      - "Include edge cases"
-
-# Reusable prompt templates
-templates:
-  refactor: "Refactor the code to improve readability and maintainability"
-  optimize: "Optimize the code for better performance"
-  debug: "Debug and fix issues in the code"
-```
 
 ## Quick Start
 
@@ -497,6 +446,60 @@ golangci-lint run
 7. **Code Review Simulation**: Have manager persona review engineer outputs
 
 8. **Learning and Mentorship**: Intern personas learn from engineer personas
+
+
+
+### Configuration File
+
+Create a configuration file at `~/.wildwest.yaml`:
+
+```yaml
+# Default path to claude binary (overridden by CLAUDE_BIN env var)
+claude_path: "claude"
+
+# Define custom environments
+environments:
+  # Development environment
+  development:
+    description: "Development environment with debugging enabled"
+    working_dir: "/path/to/project"
+    env_vars:
+      DEBUG: "true"
+      LOG_LEVEL: "debug"
+    default_specs:
+      - "Use detailed logging"
+      - "Prefer readable code over performance"
+    pre_commands:
+      - "echo 'Starting development session'"
+    post_commands:
+      - "echo 'Development session complete'"
+
+  # Production environment
+  production:
+    description: "Production environment with optimizations"
+    working_dir: "/path/to/production"
+    env_vars:
+      DEBUG: "false"
+      LOG_LEVEL: "error"
+    default_specs:
+      - "Optimize for performance"
+      - "Include error handling"
+      - "Add comprehensive tests"
+
+  # Testing environment
+  testing:
+    description: "Testing environment"
+    working_dir: "/path/to/tests"
+    default_specs:
+      - "Generate unit tests"
+      - "Include edge cases"
+
+# Reusable prompt templates
+templates:
+  refactor: "Refactor the code to improve readability and maintainability"
+  optimize: "Optimize the code for better performance"
+  debug: "Debug and fix issues in the code"
+```
 
 ## Contributing
 
