@@ -1,15 +1,20 @@
 # WildWest
 
-A Go wrapper for Claude Code that enables running Claude in multi-agent environments. 
+A Go wrapper for Claude Code that enables running Claude in multi-agent environments.
 Quick guide:
 
 
 
-```
+```bash
+# Start a team with auto-orchestration (one command!)
+wildwest team start "Build a REST API for user management" --engineers 2 --run
+
+# Or start team and orchestrator separately
 wildwest team start "Build a REST API for user management" --engineers 2
 wildwest orchestrate --workspace .database
-# Grab the tmux session ID and run:
-tmux attach -t claude-orchestrator-*
+
+# Attach to orchestrator to monitor progress
+tmux attach -t wildwest-orchestrator-*
 ```
 
 
@@ -25,12 +30,13 @@ Some of the personas have capabilities to assign tasks and some of the personas 
 ## Features
 
 - **Multi-Agent Team System**: Hierarchical team of Claude personas working together
+- **Auto-Orchestrate**: Start team and orchestrator with a single command using `--run` flag
 - **Tmux Integration**: Each persona runs in persistent background tmux sessions
-- **Dynamic Team Scaling**: Personas can request additional engineers/interns as needed
+- **Dynamic Team Scaling**: Personas can request additional engineers/interns/QA as needed
 - **Real-time Status Tracking**: View running/stopped/completed sessions at any time
 - **Cost Tracking**: Monitor token usage and costs across all personas in real-time
 - **Session Management**: Attach/detach from any session, automatic archival on completion
-- **4 Persona Types**: Engineering Manager, Solutions Architect, Software Engineer, Intern
+- **5 Persona Types**: Engineering Manager, Solutions Architect, Software Engineer, Intern, QA Engineer
 
 ## Installation
 
@@ -54,6 +60,10 @@ go install
 ## Quick Start
 
 ```bash
+# Option 1: One-command start with auto-orchestration (recommended)
+wildwest team start "Build a REST API for user management" --engineers 2 --run
+
+# Option 2: Start team and orchestrator separately
 # 1. Create a team
 wildwest team start "Build a REST API for user management" --engineers 2
 
@@ -129,6 +139,11 @@ echo "Implement API endpoints" > .database/software-engineer-request-api-develop
 mkdir .database/intern-request-test-writer
 echo "Write unit tests" > .database/intern-request-test-writer/instructions.md
 # Orchestrator automatically spawns the intern
+
+# Any persona requests QA for testing
+mkdir .database/qa-request-feature-tester
+echo "Write integration tests for user authentication" > .database/qa-request-feature-tester/instructions.md
+# Orchestrator automatically spawns the QA engineer
 ```
 
 #### How Team Collaboration Works
@@ -144,8 +159,9 @@ echo "Write unit tests" > .database/intern-request-test-writer/instructions.md
    - **Project Manager**: Orchestrator that spawns/manages Claude instances
    - **Engineering Manager** (1 max): Writes requirements, requests engineers
    - **Solutions Architect** (1 max): Designs systems, requests engineers
-   - **Software Engineers** (multiple): Implement features, request interns
+   - **Software Engineers** (multiple): Implement features, request interns/QA
    - **Interns** (multiple): Handle tests, linting, docs
+   - **QA Engineers** (multiple): Write unit tests, browser tests, verify features
 
 3. **Tmux Sessions**:
    - Each persona runs in its own tmux session: `claude-{session-id}`
@@ -168,6 +184,7 @@ echo "Write unit tests" > .database/intern-request-test-writer/instructions.md
 6. **Dynamic Spawning**:
    - Manager/Architect create `software-engineer-request-{name}/` directories
    - Engineers create `intern-request-{name}/` directories
+   - Any persona can create `qa-request-{name}/` directories for testing
    - Orchestrator detects requests and spawns Claude instances
    - Completed sessions automatically archived
 
