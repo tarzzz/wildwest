@@ -506,9 +506,9 @@ func (m *OrchestratorModel) getStatusEmoji(status string) string {
 	}
 }
 
-// tickCmd returns a tick command that fires every 2 seconds
+// tickCmd returns a tick command that fires every 1 second
 func tickCmd() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 		return TickMsg(t)
 	})
 }

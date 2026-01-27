@@ -21,6 +21,21 @@ type Orchestrator struct {
 	workspacePath   string
 	pollInterval    time.Duration
 	verbose         bool
+	tuiMode         bool // Silent mode for TUI
+}
+
+// log prints a message unless in TUI mode
+func (o *Orchestrator) log(format string, args ...interface{}) {
+	if !o.tuiMode {
+		fmt.Printf(format, args...)
+	}
+}
+
+// logln prints a line unless in TUI mode
+func (o *Orchestrator) logln(args ...interface{}) {
+	if !o.tuiMode {
+		fmt.Println(args...)
+	}
 }
 
 // NewOrchestrator creates a new orchestrator
@@ -47,10 +62,10 @@ func NewOrchestrator(workspacePath string, verbose bool) (*Orchestrator, error) 
 
 // Run starts the orchestrator daemon
 func (o *Orchestrator) Run() error {
-	fmt.Println("🎯 Project Manager Orchestrator Started")
-	fmt.Printf("   Workspace: %s\n", o.workspacePath)
-	fmt.Printf("   Poll Interval: %v\n", o.pollInterval)
-	fmt.Println()
+	o.logln("🎯 Project Manager Orchestrator Started")
+	o.log("   Workspace: %s\n", o.workspacePath)
+	o.log("   Poll Interval: %v\n", o.pollInterval)
+	o.logln()
 
 	// Start cost monitor in background
 	costMonitor := NewCostMonitor(o.sm)
@@ -63,14 +78,14 @@ func (o *Orchestrator) Run() error {
 
 	// Initial scan
 	if err := o.scanAndProcess(); err != nil {
-		fmt.Printf("⚠️  Error in initial scan: %v\n", err)
+		o.log("⚠️  Error in initial scan: %v\n", err)
 	}
 
 	for {
 		select {
 		case <-ticker.C:
 			if err := o.scanAndProcess(); err != nil {
-				fmt.Printf("⚠️  Error in scan: %v\n", err)
+				o.log("⚠️  Error in scan: %v\n", err)
 			}
 		}
 	}
@@ -78,28 +93,21 @@ func (o *Orchestrator) Run() error {
 
 // RunTUI starts the orchestrator with interactive TUI
 func (o *Orchestrator) RunTUI() error {
-	// Start cost monitor in background
-	costMonitor := NewCostMonitor(o.sm)
-	go func() {
-		costMonitor.Start()
-	}()
+	// Enable TUI mode to suppress verbose output
+	o.tuiMode = true
 
 	// Start background goroutine to handle orchestrator logic
 	go func() {
 		ticker := time.NewTicker(o.pollInterval)
 		defer ticker.Stop()
 
-		// Initial scan
-		if err := o.scanAndProcess(); err != nil {
-			fmt.Fprintf(os.Stderr, "⚠️  Error in initial scan: %v\n", err)
-		}
+		// Initial scan (silent)
+		o.scanAndProcess()
 
 		for {
 			select {
 			case <-ticker.C:
-				if err := o.scanAndProcess(); err != nil {
-					fmt.Fprintf(os.Stderr, "⚠️  Error in scan: %v\n", err)
-				}
+				o.scanAndProcess()
 			}
 		}
 	}()
@@ -152,7 +160,7 @@ func (o *Orchestrator) processSpawnRequests() error {
 		// Check if it's a request directory
 		if strings.Contains(dirName, "-request-") {
 			if err := o.handleSpawnRequest(dirName); err != nil {
-				fmt.Printf("⚠️  Failed to handle spawn request %s: %v\n", dirName, err)
+				o.log("⚠️  Failed to handle spawn request %s: %v\n", dirName, err)
 			}
 			continue
 		}
@@ -178,7 +186,7 @@ func (o *Orchestrator) processSpawnRequests() error {
 			if _, err := os.Stat(sessionFile); err == nil {
 				// Session exists, spawn it
 				if err := o.handleSpawnRequest(dirName); err != nil {
-					fmt.Printf("⚠️  Failed to spawn session %s: %v\n", dirName, err)
+					o.log("⚠️  Failed to spawn session %s: %v\n", dirName, err)
 				}
 			}
 		}
@@ -251,17 +259,17 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 		if data, err := os.ReadFile(requestInstructions); err == nil {
 			sessionInstructions := filepath.Join(o.workspacePath, sess.ID, "instructions.md")
 			if err := os.WriteFile(sessionInstructions, data, 0644); err != nil {
-				fmt.Printf("⚠️  Failed to copy instructions: %v\n", err)
+				o.log("⚠️  Failed to copy instructions: %v\n", err)
 			}
 		}
 
 		// Remove request directory
 		if err := os.RemoveAll(requestPath); err != nil {
-			fmt.Printf("⚠️  Failed to remove request directory: %v\n", err)
+			o.log("⚠️  Failed to remove request directory: %v\n", err)
 		}
 	}
 
-	fmt.Printf("\n🚀 Spawning %s: %s\n", personaType, sess.PersonaName)
+	o.log("\n🚀 Spawning %s: %s\n", personaType, sess.PersonaName)
 
 	// Get persona definition
 	p, err := o.personas.GetPersona(string(personaType))
@@ -306,8 +314,8 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 	// Mark session as active
 	o.activeSessions[sess.ID] = true
 
-	fmt.Printf("   ✅ Session: %s (tmux: %s)\n", sess.ID, tmuxSessionName)
-	fmt.Printf("   📎 Attach with: tmux attach -t %s\n", tmuxSessionName)
+	o.log("   ✅ Session: %s (tmux: %s)\n", sess.ID, tmuxSessionName)
+	o.log("   📎 Attach with: tmux attach -t %s\n", tmuxSessionName)
 
 	return nil
 }
@@ -345,7 +353,7 @@ func (o *Orchestrator) processCompletedSessions() error {
 		}
 
 		if o.areAllTasksCompleted(tasks) {
-			fmt.Printf("\n🎉 All tasks completed for %s (%s)\n", sess.PersonaName, sess.ID)
+			o.log("\n🎉 All tasks completed for %s (%s)\n", sess.PersonaName, sess.ID)
 
 			// Terminate tmux session if still running
 			if o.isTmuxSessionRunning(sess.ID) {
@@ -397,7 +405,7 @@ func (o *Orchestrator) archiveSession(sessionID string) error {
 		return err
 	}
 
-	fmt.Printf("   📦 Archived to: %s\n", newPath)
+	o.log("   📦 Archived to: %s\n", newPath)
 	return nil
 }
 
@@ -417,9 +425,9 @@ func (o *Orchestrator) monitorRunningSessions() error {
 			}
 
 			if personaName != "" {
-				fmt.Printf("\n⚠️  Session stopped: %s (%s)\n", personaName, sessionID)
+				o.log("\n⚠️  Session stopped: %s (%s)\n", personaName, sessionID)
 			} else {
-				fmt.Printf("\n⚠️  Session stopped: %s\n", sessionID)
+				o.log("\n⚠️  Session stopped: %s\n", sessionID)
 			}
 
 			delete(o.activeSessions, sessionID)
@@ -428,10 +436,10 @@ func (o *Orchestrator) monitorRunningSessions() error {
 			// Check if it was manually killed vs completed
 			tasks, err := o.sm.ReadTasks(sessionID)
 			if err == nil && o.areAllTasksCompleted(tasks) {
-				fmt.Printf("   📋 All tasks were completed\n")
+				o.log("   📋 All tasks were completed\n")
 				o.sm.UpdateSessionStatus(sessionID, "completed")
 			} else {
-				fmt.Printf("   📋 Session did not complete all tasks\n")
+				o.log("   📋 Session did not complete all tasks\n")
 			}
 		}
 	}
