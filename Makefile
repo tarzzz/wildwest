@@ -1,7 +1,7 @@
 .PHONY: build install test clean run help
 
 # Binary name
-BINARY_NAME=claude-wrapper
+BINARY_NAME=wildwest
 
 # Build variables
 BUILD_DIR=./bin

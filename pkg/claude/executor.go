@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/plotly/claude-wrapper/pkg/config"
+	"github.com/tarzzz/wildwest/pkg/config"
 )
 
 // ExecutorOptions contains options for executing Claude

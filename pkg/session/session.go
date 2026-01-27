@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/plotly/claude-wrapper/pkg/names"
+	"github.com/tarzzz/wildwest/pkg/names"
 )
 
 // SessionType represents the type of persona session

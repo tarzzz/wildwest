@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/plotly/claude-wrapper/pkg/session"
+	"github.com/tarzzz/wildwest/pkg/session"
 	"github.com/spf13/cobra"
 )
 

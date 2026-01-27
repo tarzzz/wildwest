@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/plotly/claude-wrapper/cmd"
+	"github.com/tarzzz/wildwest/cmd"
 )
 
 func main() {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/plotly/claude-wrapper/pkg/orchestrator"
+	"github.com/tarzzz/wildwest/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/plotly/claude-wrapper/pkg/persona"
+	"github.com/tarzzz/wildwest/pkg/persona"
 	"github.com/spf13/cobra"
 )
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/plotly/claude-wrapper/pkg/persona"
-	"github.com/plotly/claude-wrapper/pkg/session"
+	"github.com/tarzzz/wildwest/pkg/persona"
+	"github.com/tarzzz/wildwest/pkg/session"
 )
 
 // Orchestrator manages the lifecycle of Claude instances
@@ -50,6 +50,12 @@ func (o *Orchestrator) Run() error {
 	fmt.Printf("   Workspace: %s\n", o.workspacePath)
 	fmt.Printf("   Poll Interval: %v\n", o.pollInterval)
 	fmt.Println()
+
+	// Start cost monitor in background
+	costMonitor := NewCostMonitor(o.sm)
+	go func() {
+		costMonitor.Start()
+	}()
 
 	ticker := time.NewTicker(o.pollInterval)
 	defer ticker.Stop()

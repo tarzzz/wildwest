@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/plotly/claude-wrapper/pkg/config"
+	"github.com/tarzzz/wildwest/pkg/config"
 	"github.com/spf13/cobra"
 )
 

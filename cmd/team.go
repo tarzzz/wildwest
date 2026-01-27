@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/plotly/claude-wrapper/pkg/persona"
-	"github.com/plotly/claude-wrapper/pkg/session"
+	"github.com/tarzzz/wildwest/pkg/persona"
+	"github.com/tarzzz/wildwest/pkg/session"
 	"github.com/spf13/cobra"
 )
 

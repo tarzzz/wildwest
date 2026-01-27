@@ -9,6 +9,7 @@ A flexible Go wrapper for Claude Code that enables running Claude in custom envi
 - **Automatic Monitoring**: Background tasks check for new instructions every 5 seconds
 - **Dynamic Team Scaling**: Personas can request additional engineers/interns as needed
 - **Real-time Status Tracking**: View running/stopped/completed sessions at any time
+- **Cost Tracking**: Monitor token usage and costs across all personas in real-time
 - **Named Personas**: 130+ historical figures (scientists, artists, musicians, etc.)
 - **File-based Communication**: Personas coordinate via instructions.md and tasks.md
 - **Session Management**: Attach/detach from any session, automatic archival on completion
@@ -198,6 +199,54 @@ echo "Write unit tests" > .database/intern-request-test-writer/instructions.md
    - Engineers create `intern-request-{name}/` directories
    - Orchestrator detects requests and spawns Claude instances
    - Completed sessions automatically archived
+
+### Monitor Token Usage and Costs
+
+The orchestrator automatically tracks token usage and calculates costs for all active personas:
+
+```bash
+# Show current cost snapshot
+wildwest team cost
+
+# Watch costs update in real-time (updates every minute)
+wildwest team cost --watch
+```
+
+**Output example:**
+```
+💰 Team Cost Summary
+====================
+
+📊 Ada Lovelace (engineering-manager)
+   Session: engineering-manager-1234567890
+   Model: sonnet
+   Input Tokens: 45,230
+   Output Tokens: 12,450
+   Total Tokens: 57,680
+   Cost: $0.3230
+   Last Updated: 2026-01-26 15:30:45
+
+📊 Alan Turing (software-engineer)
+   Session: software-engineer-1234567891
+   Model: sonnet
+   Input Tokens: 32,100
+   Output Tokens: 8,900
+   Total Tokens: 41,000
+   Cost: $0.2300
+   Last Updated: 2026-01-26 15:30:45
+
+====================
+💵 Total Team Cost: $0.5530
+```
+
+**How it works:**
+- Token usage is automatically polled every minute from tmux sessions
+- Costs are calculated based on Claude model pricing:
+  - Sonnet: $3/MTok input, $15/MTok output
+  - Opus: $15/MTok input, $75/MTok output
+  - Haiku: $0.25/MTok input, $1.25/MTok output
+- Usage data is stored in each session's `tokens.json` file
+- No manual tracking needed - fully automated
 
 ### Run Claude with custom environment
 

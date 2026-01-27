@@ -14,7 +14,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "claude-wrapper",
+	Use:   "wildwest",
 	Short: "A wrapper for Claude Code with custom environments and specs",
 	Long: `Claude Wrapper - Multi-Agent Team Management for Claude Code
 
@@ -24,10 +24,10 @@ Each persona runs independently in tmux sessions and communicates via file-based
 QUICK START:
 
   1. Create a team:
-     claude-wrapper team start "Build a REST API for todo items"
+     wildwest team start "Build a REST API for todo items"
 
   2. Start the orchestrator (runs in tmux, returns immediately):
-     claude-wrapper orchestrate --workspace .database
+     wildwest orchestrate --workspace .database
 
   3. View all sessions (including orchestrator):
      tmux ls | grep claude
@@ -36,14 +36,14 @@ QUICK START:
      tmux attach -t claude-orchestrator-*
 
   5. Attach to persona sessions:
-     claude-wrapper attach                 # Manager (default)
-     claude-wrapper attach <session-id>    # Specific persona
+     wildwest attach                 # Manager (default)
+     wildwest attach <session-id>    # Specific persona
 
   6. Detach from any tmux session:
      Press Ctrl+B then D
 
   7. Clean up stopped sessions:
-     claude-wrapper cleanup
+     wildwest cleanup
 
 TEAM HIERARCHY:
 
@@ -63,18 +63,18 @@ HOW IT WORKS:
 EXAMPLES:
 
   # Create team with 2 engineers
-  claude-wrapper team start "Build a web scraper" --engineers 2
+  wildwest team start "Build a web scraper" --engineers 2
 
   # Attach to specific session
-  claude-wrapper attach engineering-manager-1234567890
+  wildwest attach engineering-manager-1234567890
 
   # Filter sessions by type
-  claude-wrapper attach --list --filter engineer
+  wildwest attach --list --filter engineer
 
   # View orchestrator status
   tmux ls | grep claude
 
-For more information: https://github.com/plotly/claude-wrapper`,
+For more information: https://github.com/tarzzz/wildwest`,
 	Version: "0.1.0",
 }
 
@@ -85,7 +85,7 @@ func Execute() error {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.claude-wrapper.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.wildwest.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 }
 
@@ -102,7 +102,7 @@ func initConfig() {
 		viper.AddConfigPath(home)
 		viper.AddConfigPath(".")
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".claude-wrapper")
+		viper.SetConfigName(".wildwest")
 	}
 
 	viper.AutomaticEnv()
