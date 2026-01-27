@@ -3,6 +3,8 @@
 A Go wrapper for Claude Code that enables running Claude in multi-agent environments. 
 Quick guide:
 
+
+
 ```
 wildwest team start "Build a REST API for user management" --engineers 2
 wildwest orchestrate --workspace .database
@@ -10,10 +12,13 @@ wildwest orchestrate --workspace .database
 tmux attach -t claude-orchestrator-*
 ```
 
+
 **How it works:** The orchestrator spawns multiple agents corresponding to the individual persona (Manager, Architect, Software Engineer, Intern etc.) and they work with each other to accomplish the task at hand.
 Some of the personas have capabilities to assign tasks and some of the personas has capabilities to add additional resources (claude sessions) and provide instructions to them.
 
+
 **Communication between agents:** gRPC :x: TCP :x: Markdown files :white_check_mark:
+
 
 **Disclaimer:** Not ready for production usage.
 
