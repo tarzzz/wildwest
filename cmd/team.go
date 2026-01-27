@@ -18,6 +18,7 @@ var (
 	numInterns       int
 	teamTask         string
 	autoRun          bool
+	useTUITeam       bool
 )
 
 var teamCmd = &cobra.Command{
@@ -56,6 +57,7 @@ func init() {
 	teamStartCmd.Flags().IntVar(&numEngineers, "engineers", 1, "number of software engineer sessions")
 	teamStartCmd.Flags().IntVar(&numInterns, "interns", 0, "number of intern sessions")
 	teamStartCmd.Flags().BoolVar(&autoRun, "run", false, "automatically start orchestration daemon after team creation")
+	teamStartCmd.Flags().BoolVar(&useTUITeam, "tui", false, "use interactive TUI for orchestrator (requires --run)")
 }
 
 func startTeam(cmd *cobra.Command, args []string) error {
@@ -162,6 +164,9 @@ func startTeam(cmd *cobra.Command, args []string) error {
 
 		// Build command: wildwest orchestrate --workspace <workspace>
 		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s", workspaceDir)
+		if useTUITeam {
+			orchestrateCmd += " --tui"
+		}
 
 		// Start tmux session with orchestrator
 		tmuxCmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, orchestrateCmd)
