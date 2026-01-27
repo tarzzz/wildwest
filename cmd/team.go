@@ -257,7 +257,13 @@ Each persona has their own directory:
 
 	// Start Claude in background with persona instructions
 	go func() {
-		cmd := exec.Command("claude", "--instructions", instructionsFile, task)
+		// Get claude binary path (respects CLAUDE_BIN env var)
+		claudeBin := os.Getenv("CLAUDE_BIN")
+		if claudeBin == "" {
+			claudeBin = "claude"
+		}
+
+		cmd := exec.Command(claudeBin, "--instructions", instructionsFile, task)
 		cmd.Dir = sm.GetWorkspacePath()
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

@@ -30,10 +30,19 @@ go install
 
 ## Configuration
 
+### Environment Variables
+
+- **CLAUDE_BIN**: Path to the claude binary if installed in a custom location
+  ```bash
+  export CLAUDE_BIN=/path/to/custom/claude
+  ```
+
+### Configuration File
+
 Create a configuration file at `~/.wildwest.yaml`:
 
 ```yaml
-# Default path to claude binary
+# Default path to claude binary (overridden by CLAUDE_BIN env var)
 claude_path: "claude"
 
 # Define custom environments

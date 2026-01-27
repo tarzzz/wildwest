@@ -1,9 +1,11 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -584,8 +586,74 @@ func (sm *SessionManager) CreateWorkspace(description string) (*Workspace, error
 	return workspace, nil
 }
 
-// GetCurrentWork extracts the current task being worked on from tasks.md
+// GetCurrentWork generates an intelligent summary of what the team member is working on
 func (sm *SessionManager) GetCurrentWork(sessionID string) string {
+	personaDir := sm.getPersonaDir(sessionID)
+
+	// Check if directory exists
+	if _, err := os.Stat(personaDir); os.IsNotExist(err) {
+		return "Directory not found"
+	}
+
+	// Get claude binary path (respects CLAUDE_BIN env var)
+	claudeBin := os.Getenv("CLAUDE_BIN")
+	if claudeBin == "" {
+		claudeBin = "claude"
+	}
+
+	// Use claude -p to generate a concise summary
+	prompt := `Analyze this persona's workspace and provide a ONE-LINE summary (max 100 chars) of what they are currently working on.
+
+Look at:
+- tasks.md for assigned tasks and their status
+- Any recent files they've created or modified
+- instructions.md for context
+
+Output ONLY the one-line summary, nothing else. Use present tense.
+Examples:
+- "Implementing user authentication endpoints"
+- "Designing database schema for orders"
+- "Writing unit tests for payment service"
+- "Awaiting task assignment"
+- "All tasks completed"
+
+If tasks.md shows "in progress", focus on that task. If only "not started", say "Awaiting: [task]".`
+
+	// Set timeout of 10 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmdWithCtx := exec.CommandContext(ctx, claudeBin, "-p", prompt)
+	cmdWithCtx.Dir = personaDir
+
+	output, err := cmdWithCtx.CombinedOutput()
+	if err != nil {
+		// Fallback to simple parsing if claude fails
+		return sm.getSimpleCurrentWork(sessionID)
+	}
+
+	summary := strings.TrimSpace(string(output))
+
+	// Clean up the output - remove any markdown, quotes, or extra formatting
+	summary = strings.Trim(summary, "`\"'")
+	summary = strings.TrimPrefix(summary, "Summary: ")
+	summary = strings.TrimPrefix(summary, "Currently: ")
+
+	// Ensure it's not too long
+	if len(summary) > 100 {
+		summary = summary[:97] + "..."
+	}
+
+	// If empty or too short, fallback
+	if len(summary) < 5 {
+		return sm.getSimpleCurrentWork(sessionID)
+	}
+
+	return summary
+}
+
+// getSimpleCurrentWork is a fallback that parses tasks.md directly
+func (sm *SessionManager) getSimpleCurrentWork(sessionID string) string {
 	tasksContent, err := sm.ReadTasks(sessionID)
 	if err != nil {
 		return "No tasks found"

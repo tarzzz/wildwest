@@ -245,10 +245,16 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 	absWorkspace, _ := filepath.Abs(o.workspacePath)
 	absSessionDir := filepath.Join(absWorkspace, sess.ID)
 
+	// Get claude binary path (respects CLAUDE_BIN env var)
+	claudeBin := os.Getenv("CLAUDE_BIN")
+	if claudeBin == "" {
+		claudeBin = "claude"
+	}
+
 	// Create the initial Claude command with instructions to monitor files
 	// Run from project root, reference persona files with full paths
-	claudeCmd := fmt.Sprintf("claude --dangerously-skip-permissions --append-system-prompt \"$(cat %s/persona-instructions.md)\" 'IMPORTANT: You are working from the project root directory. Your persona files are located in: %s/\n\nCreate a background Bash task that monitors %s/instructions.md every 5 seconds. When new content is detected (file size increases), read and act on the new instructions immediately. Start this monitoring task now using:\n\nBash(PERSONA_DIR=%s; LAST_SIZE=0; while true; do if [ -f \"$PERSONA_DIR/instructions.md\" ]; then NEW_SIZE=$(wc -c < \"$PERSONA_DIR/instructions.md\" | tr -d \" \"); if [ \"$NEW_SIZE\" -gt \"${LAST_SIZE:-0}\" 2>/dev/null ]; then echo \"New instructions detected in $PERSONA_DIR/instructions.md\"; fi; LAST_SIZE=$NEW_SIZE; fi; sleep 5; done, run_in_background=true)\n\nThen begin working on your tasks from %s/tasks.md. All your work should be done in the current directory (project root), but reference your persona directory for instructions and tasks.'",
-		absSessionDir, absSessionDir, absSessionDir, absSessionDir, absSessionDir)
+	claudeCmd := fmt.Sprintf("%s --dangerously-skip-permissions --append-system-prompt \"$(cat %s/persona-instructions.md)\" 'IMPORTANT: You are working from the project root directory. Your persona files are located in: %s/\n\nCreate a background Bash task that monitors %s/instructions.md every 5 seconds. When new content is detected (file size increases), read and act on the new instructions immediately. Start this monitoring task now using:\n\nBash(PERSONA_DIR=%s; LAST_SIZE=0; while true; do if [ -f \"$PERSONA_DIR/instructions.md\" ]; then NEW_SIZE=$(wc -c < \"$PERSONA_DIR/instructions.md\" | tr -d \" \"); if [ \"$NEW_SIZE\" -gt \"${LAST_SIZE:-0}\" 2>/dev/null ]; then echo \"New instructions detected in $PERSONA_DIR/instructions.md\"; fi; LAST_SIZE=$NEW_SIZE; fi; sleep 5; done, run_in_background=true)\n\nThen begin working on your tasks from %s/tasks.md. All your work should be done in the current directory (project root), but reference your persona directory for instructions and tasks.'",
+		claudeBin, absSessionDir, absSessionDir, absSessionDir, absSessionDir, absSessionDir)
 
 	// Create tmux session and run Claude from current directory
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", tmuxSessionName, "bash", "-c", claudeCmd)

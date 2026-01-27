@@ -9,6 +9,15 @@ import (
 	"github.com/tarzzz/wildwest/pkg/config"
 )
 
+// GetClaudeBinary returns the path to the claude binary
+// It checks CLAUDE_BIN environment variable first, then falls back to "claude"
+func GetClaudeBinary() string {
+	if claudeBin := os.Getenv("CLAUDE_BIN"); claudeBin != "" {
+		return claudeBin
+	}
+	return "claude"
+}
+
 // ExecutorOptions contains options for executing Claude
 type ExecutorOptions struct {
 	Prompt              string
@@ -34,7 +43,14 @@ func NewExecutor(cfg *config.Config) *Executor {
 
 // Run executes Claude Code with the given options
 func (e *Executor) Run(opts ExecutorOptions) error {
-	claudePath := e.config.ClaudePath
+	// Check CLAUDE_BIN environment variable first
+	claudePath := GetClaudeBinary()
+
+	// Then check config
+	if e.config.ClaudePath != "" {
+		claudePath = e.config.ClaudePath
+	}
+
 	var env *config.Environment
 
 	// Load environment if specified
@@ -152,7 +168,14 @@ Please provide:
 
 Format the response as a clear, structured set of instructions.`, opts.Prompt)
 
-	claudePath := e.config.ClaudePath
+	// Check CLAUDE_BIN environment variable first
+	claudePath := GetClaudeBinary()
+
+	// Then check config
+	if e.config.ClaudePath != "" {
+		claudePath = e.config.ClaudePath
+	}
+
 	if opts.Environment != "" {
 		env, err := e.config.GetEnvironment(opts.Environment)
 		if err != nil {
