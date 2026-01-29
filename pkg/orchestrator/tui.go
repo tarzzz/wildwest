@@ -118,7 +118,7 @@ func NewOrgChartModel(orch *Orchestrator, sm *session.SessionManager, workspaceP
 	return OrgChartModel{
 		components:     make([]Component, 0),
 		selectedIndex:  0,
-		showingDetails: true,  // Always show details
+		showingDetails: false,  // Start with details hidden, press 'd' to show
 		orchestrator:   orch,
 		sessionManager: sm,
 		workspacePath:  workspacePath,
@@ -158,15 +158,15 @@ func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.selectedIndex > 0 {
 				m.selectedIndex--
 			}
-			// Always show details for selected item
-			m.showingDetails = true
 
 		case "down", "j":
 			if m.selectedIndex < len(m.components)-1 {
 				m.selectedIndex++
 			}
-			// Always show details for selected item
-			m.showingDetails = true
+
+		case "d":
+			// Toggle details popup
+			m.showingDetails = !m.showingDetails
 
 		case "a":
 			// Attach to selected tmux session
@@ -487,12 +487,12 @@ func (m OrgChartModel) View() string {
 		b.WriteString(m.renderDetails())
 	}
 
-	// Render logs section
-	b.WriteString(m.renderLogs())
+	// Render cost estimate section
+	b.WriteString(m.renderCostEstimate())
 
 	// Footer
 	b.WriteString("\n")
-	instructions := "↑↓/jk: navigate | a: attach to session | q: quit"
+	instructions := "↑↓/jk: navigate | d: details | a: attach to session | q: quit"
 	b.WriteString(footerStyle.Render(instructions))
 
 	return b.String()
@@ -590,23 +590,37 @@ func (m OrgChartModel) getStatusMarker(status string) string {
 	}
 }
 
-func (m OrgChartModel) renderLogs() string {
+func (m OrgChartModel) renderCostEstimate() string {
 	var b strings.Builder
 
 	b.WriteString(logsBorderStyle.Render(""))
 	b.WriteString("\n")
-	b.WriteString(logsHeaderStyle.Render("📋 Orchestrator Logs"))
-	b.WriteString("\n")
 
-	if len(m.logs) == 0 {
-		b.WriteString(logLineStyle.Render("Waiting for orchestrator activity..."))
+	// Get total cost from session manager
+	totalCost, usageMap, err := m.sessionManager.GetTotalTeamCost()
+	if err != nil || len(usageMap) == 0 {
+		b.WriteString(logsHeaderStyle.Render("💰 Cost Estimate: $0.00 (no usage data yet)"))
 		b.WriteString("\n")
-	} else {
-		for _, log := range m.logs {
-			b.WriteString(logLineStyle.Render(log))
-			b.WriteString("\n")
-		}
+		return b.String()
 	}
+
+	// Calculate total tokens
+	var totalInputTokens, totalOutputTokens int64
+	for _, usage := range usageMap {
+		totalInputTokens += usage.InputTokens
+		totalOutputTokens += usage.OutputTokens
+	}
+	totalTokens := totalInputTokens + totalOutputTokens
+
+	// Format the cost summary
+	costLine := fmt.Sprintf("💰 Cost Estimate: %s | Tokens: %s in, %s out (%s total)",
+		session.FormatCost(totalCost),
+		session.FormatTokens(totalInputTokens),
+		session.FormatTokens(totalOutputTokens),
+		session.FormatTokens(totalTokens))
+
+	b.WriteString(logsHeaderStyle.Render(costLine))
+	b.WriteString("\n")
 
 	return b.String()
 }
