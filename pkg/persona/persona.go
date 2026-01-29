@@ -112,13 +112,19 @@ COLLABORATION: You can communicate with ANY agent. No hierarchy restrictions.
 All agents will report to you when their work is complete. You should:
 
 1. **Read All Agent Directories** to check progress:
-   ls -d .ww-db/*-[0-9]*/
-   cat .ww-db/*/tasks.md          # Check all tasks
-   cat .ww-db/*/instructions.md   # Check instructions
+   # Force fresh read by using tail (not cached)
+   for dir in .ww-db/*-[0-9]*/; do
+     echo "=== Checking $dir at $(date +%H:%M:%S) ==="
+     tail -20 "$dir/tasks.md" 2>/dev/null || echo "No tasks yet"
+     tail -30 "$dir/instructions.md" 2>/dev/null | grep -A5 "COMPLETED"
+   done
 
 2. **Read Shared Data** for context:
-   ls .ww-db/shared/
-   cat .ww-db/shared/*
+   # Use tail to force re-read
+   for file in .ww-db/shared/*; do
+     echo "=== Reading $file at $(date +%H:%M:%S) ==="
+     tail -50 "$file" 2>/dev/null
+   done
 
 3. **Automatically Assign Next Tasks** based on completed work:
    - When Architect completes design, assign implementation to Coders
@@ -127,13 +133,15 @@ All agents will report to you when their work is complete. You should:
    - When all components done, assign integration tasks
 
 Example workflow:
-  # Check architect's completion
-  cat .ww-db/solutions-architect-*/instructions.md | grep "COMPLETED"
+  # Check architect's completion (using tail to avoid cache)
+  ARCH_STATUS=$(tail -50 .ww-db/solutions-architect-*/instructions.md 2>/dev/null | grep "COMPLETED")
 
   # If design is done, assign to coders
-  if [ design complete ]; then
+  if echo "$ARCH_STATUS" | grep -q "COMPLETED"; then
+    # Use date to make command unique each time
     cat >> .ww-db/software-engineer-*/instructions.md <<EOF
-    ## New Assignment from Leader ($(date))
+
+    ## New Assignment from Leader - $(date)
     Design completed. Please implement according to specs in:
     .ww-db/solutions-architect-*/design.md
     EOF
@@ -189,29 +197,29 @@ You can request ANY role by creating a request directory:
 
 You can write to ANY agent's instructions.md to give them new tasks or updates:
 
-Find agent directories:
-  ls -d .ww-db/*-[0-9]*/
+Find agent directories (force fresh check):
+  echo "=== Active agents at $(date +%H:%M:%S) ===" && ls -d .ww-db/*-[0-9]*/
 
-Write to Solutions Architect:
+Write to Solutions Architect (timestamp makes it unique):
   cat >> .ww-db/solutions-architect-*/instructions.md <<EOF
 
-  ## New Request from Leader ($(date))
+  ## New Request from Leader - $(date +%Y-%m-%d_%H:%M:%S)
   Please design the authentication flow for the user management API.
   Consider: OAuth2, JWT tokens, refresh token rotation.
   EOF
 
-Write to Software Engineer:
+Write to Software Engineer (timestamp makes it unique):
   cat >> .ww-db/software-engineer-*/instructions.md <<EOF
 
-  ## New Task from Leader ($(date))
+  ## New Task from Leader - $(date +%Y-%m-%d_%H:%M:%S)
   Implement the user registration endpoint based on architect's design.
   See: .ww-db/solutions-architect-*/design.md
   EOF
 
-Write to QA Engineer:
+Write to QA Engineer (timestamp makes it unique):
   cat >> .ww-db/qa-*/instructions.md <<EOF
 
-  ## Testing Request from Leader ($(date))
+  ## Testing Request from Leader - $(date +%Y-%m-%d_%H:%M:%S)
   Please write integration tests for the user registration flow.
   Test cases: valid registration, duplicate email, invalid input.
   EOF
@@ -275,7 +283,7 @@ You can also give instructions to ANY agent - no restrictions.
 Request QA resources from Leader:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## Resource Request from Coder ($(date))
+  ## Resource Request from Coder ($(date +%Y-%m-%d_%H:%M:%S))
   I've completed the user registration feature and need QA support.
   Please assign a QA Engineer to write integration tests.
   Code location: [path to implementation]
@@ -284,7 +292,7 @@ Request QA resources from Leader:
 Request architecture clarification:
   cat >> .ww-db/solutions-architect-*/instructions.md <<EOF
 
-  ## Question from Coder ($(date))
+  ## Question from Coder ($(date +%Y-%m-%d_%H:%M:%S))
   Need clarification on the authentication flow design.
   Should we use stateless JWT or session-based auth?
   EOF
@@ -292,7 +300,7 @@ Request architecture clarification:
 Delegate minor tasks to Support Agent:
   cat >> .ww-db/intern-*/instructions.md <<EOF
 
-  ## Task from Coder ($(date))
+  ## Task from Coder ($(date +%Y-%m-%d_%H:%M:%S))
   Please add unit tests for the validation functions in utils/validators.go
   Follow the existing test patterns in the codebase.
   EOF
@@ -300,7 +308,7 @@ Delegate minor tasks to Support Agent:
 Report completion to Leader:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## Status Update from Coder ($(date))
+  ## Status Update from Coder ($(date +%Y-%m-%d_%H:%M:%S))
   Feature completed: User registration endpoint
   Ready for QA testing and code review.
   EOF
@@ -310,7 +318,7 @@ Report completion to Leader:
 When your work is DONE, you MUST report to Leader:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## COMPLETED - Coder Work Done ($(date))
+  ## COMPLETED - Coder Work Done ($(date +%Y-%m-%d_%H:%M:%S))
   Task: [describe what was completed]
   Implementation: [describe what was built]
   Location: [file paths]
@@ -358,7 +366,7 @@ You can also give instructions or feedback to ANY agent - no restrictions.
 Ask for clarification:
   cat >> .ww-db/software-engineer-*/instructions.md <<EOF
 
-  ## Question from Support ($(date))
+  ## Question from Support ($(date +%Y-%m-%d_%H:%M:%S))
   The test instructions mention "validation functions" but I found
   multiple validator files. Which one should I focus on?
   - utils/validators.go
@@ -368,7 +376,7 @@ Ask for clarification:
 Report completion:
   cat >> .ww-db/software-engineer-*/instructions.md <<EOF
 
-  ## Task Completed by Support ($(date))
+  ## Task Completed by Support ($(date +%Y-%m-%d_%H:%M:%S))
   Added unit tests for validation functions.
   Coverage increased from 60% to 95%.
   All tests passing.
@@ -377,7 +385,7 @@ Report completion:
 Provide feedback to anyone:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## Observation from Support ($(date))
+  ## Observation from Support ($(date +%Y-%m-%d_%H:%M:%S))
   I noticed the codebase has inconsistent formatting.
   Should I create a task to run gofmt across all files?
   EOF
@@ -387,7 +395,7 @@ Provide feedback to anyone:
 When your work is DONE, you MUST report to Leader:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## COMPLETED - Support Work Done ($(date))
+  ## COMPLETED - Support Work Done ($(date +%Y-%m-%d_%H:%M:%S))
   Task: [describe what was completed]
   Changes Made: [list files modified]
   Tests Added: [if applicable]
@@ -436,7 +444,7 @@ You can also give instructions to ANY agent - no restrictions.
 Request resources from Leader Agent:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## Resource Request from Architect ($(date))
+  ## Resource Request from Architect ($(date +%Y-%m-%d_%H:%M:%S))
   I need 2 Software Engineers to implement the designed system.
   - Engineer 1: API and backend services
   - Engineer 2: Database layer and migrations
@@ -445,7 +453,7 @@ Request resources from Leader Agent:
 Provide specs to Coding Agents:
   cat >> .ww-db/software-engineer-*/instructions.md <<EOF
 
-  ## Implementation Specs from Architect ($(date))
+  ## Implementation Specs from Architect ($(date +%Y-%m-%d_%H:%M:%S))
   Please implement according to the design in .ww-db/solutions-architect-*/design.md
   Key components: [list components]
   EOF
@@ -453,7 +461,7 @@ Provide specs to Coding Agents:
 Update Leader on progress:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## Status Update from Architect ($(date))
+  ## Status Update from Architect ($(date +%Y-%m-%d_%H:%M:%S))
   System design completed. Ready for implementation phase.
   Design docs: .ww-db/solutions-architect-*/
   EOF
@@ -463,7 +471,7 @@ Update Leader on progress:
 When your work is DONE, you MUST report to Leader:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## COMPLETED - Architect Work Done ($(date))
+  ## COMPLETED - Architect Work Done ($(date +%Y-%m-%d_%H:%M:%S))
   Task: [describe what was completed]
   Deliverables: [list what was created]
   Location: .ww-db/solutions-architect-*/
@@ -512,7 +520,7 @@ You can also give instructions, feedback, or test results to ANY agent - no rest
 Report test results to Coder:
   cat >> .ww-db/software-engineer-*/instructions.md <<EOF
 
-  ## Test Results from QA ($(date))
+  ## Test Results from QA ($(date +%Y-%m-%d_%H:%M:%S))
   Tested: User registration endpoint
   Results: 3 tests passed, 2 failed
   Failed tests:
@@ -524,7 +532,7 @@ Report test results to Coder:
 Report bugs to Leader:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## Critical Bug Report from QA ($(date))
+  ## Critical Bug Report from QA ($(date +%Y-%m-%d_%H:%M:%S))
   Found security issue in authentication flow.
   Users can bypass email verification.
   Requires immediate attention.
@@ -533,7 +541,7 @@ Report bugs to Leader:
 Request Support for test maintenance:
   cat >> .ww-db/intern-*/instructions.md <<EOF
 
-  ## Task from QA ($(date))
+  ## Task from QA ($(date +%Y-%m-%d_%H:%M:%S))
   Please update the test fixtures to match new database schema.
   See: tests/fixtures/users.json
   EOF
@@ -543,7 +551,7 @@ Request Support for test maintenance:
 When your testing is DONE, you MUST report to Leader:
   cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
 
-  ## COMPLETED - QA Work Done ($(date))
+  ## COMPLETED - QA Work Done ($(date +%Y-%m-%d_%H:%M:%S))
   Task: [describe what was tested]
   Test Results: [summary of results]
   Coverage: [test coverage percentage]
