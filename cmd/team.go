@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/tarzzz/wildwest/pkg/orchestrator"
 	"github.com/tarzzz/wildwest/pkg/persona"
 	"github.com/tarzzz/wildwest/pkg/session"
 	"github.com/spf13/cobra"
@@ -78,11 +81,11 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Created workspace: %s\n", workspace.ID)
 	fmt.Printf("Workspace path: %s\n\n", sm.GetWorkspacePath())
 
-	// Create initial team structure (Manager + Architect only)
-	// Engineers and Interns will be requested dynamically
+	// Create initial team structure (Manager only)
+	// All other resources will be requested dynamically by the manager
 
-	// Create Engineering Manager directory (Level 1)
-	fmt.Println("Creating Engineering Manager directory (Level 1)...")
+	// Create Engineering Manager directory
+	fmt.Println("Creating Engineering Manager...")
 	managerSession, err := sm.CreateSession(session.SessionTypeEngineeringManager, "", workspace.ID)
 	if err != nil {
 		return err
@@ -94,88 +97,47 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Name: %s\n", managerSession.PersonaName)
 	fmt.Printf("  Directory: %s\n\n", managerSession.ID)
 
-	// Create Solutions Architect directory (Level 2)
-	fmt.Println("Creating Solutions Architect directory (Level 2)...")
-	architectSession, err := sm.CreateSession(session.SessionTypeSolutionsArchitect, "", workspace.ID)
-	if err != nil {
-		return err
-	}
-	// Add initial task
-	if err := sm.AddTask(architectSession.ID, "Awaiting instructions from Engineering Manager", "system"); err != nil {
-		fmt.Printf("Warning: failed to add initial task: %v\n", err)
-	}
-	fmt.Printf("  Name: %s\n", architectSession.PersonaName)
-	fmt.Printf("  Directory: %s\n\n", architectSession.ID)
-
-	// Create initial engineer directories if requested
-	if numEngineers > 0 {
-		fmt.Printf("Creating %d Software Engineer director(ies) (Level 3)...\n", numEngineers)
-		for i := 0; i < numEngineers; i++ {
-			// Add small delay to ensure unique timestamps
-			if i > 0 {
-				time.Sleep(2 * time.Millisecond)
-			}
-
-			engineerSession, err := sm.CreateSession(session.SessionTypeSoftwareEngineer, "", workspace.ID)
-			if err != nil {
-				fmt.Printf("  Warning: failed to create engineer: %v\n", err)
-				continue
-			}
-			if err := sm.AddTask(engineerSession.ID, "Awaiting instructions from Solutions Architect", "system"); err != nil {
-				fmt.Printf("Warning: failed to add initial task: %v\n", err)
-			}
-			fmt.Printf("  Name: %s\n", engineerSession.PersonaName)
-			fmt.Printf("  Directory: %s\n", engineerSession.ID)
-		}
-		fmt.Println()
+	// Create orchestrator directory with initial state
+	orchestratorDir := filepath.Join(workspaceDir, "orchestrator")
+	if err := os.MkdirAll(orchestratorDir, 0755); err != nil {
+		return fmt.Errorf("failed to create orchestrator directory: %w", err)
 	}
 
-	// Create initial intern directories if requested
-	if numInterns > 0 {
-		fmt.Printf("Creating %d Intern director(ies) (Level 4)...\n", numInterns)
-		for i := 0; i < numInterns; i++ {
-			// Add small delay to ensure unique timestamps
-			if i > 0 {
-				time.Sleep(2 * time.Millisecond)
-			}
-
-			internSession, err := sm.CreateSession(session.SessionTypeIntern, "", workspace.ID)
-			if err != nil {
-				fmt.Printf("  Warning: failed to create intern: %v\n", err)
-				continue
-			}
-			if err := sm.AddTask(internSession.ID, "Awaiting instructions from Software Engineers", "system"); err != nil {
-				fmt.Printf("Warning: failed to add initial task: %v\n", err)
-			}
-			fmt.Printf("  Name: %s\n", internSession.PersonaName)
-			fmt.Printf("  Directory: %s\n", internSession.ID)
-		}
-		fmt.Println()
+	// Create initial orchestrator state
+	initialState := map[string]interface{}{
+		"id":                    "orchestrator",
+		"status":                "initializing",
+		"start_time":            time.Now(),
+		"current_work":          "Waiting to start monitoring",
+		"total_sessions_spawned": 0,
+		"active_sessions":       0,
+		"completed_sessions":    0,
+		"failed_sessions":       0,
+	}
+	stateData, _ := json.MarshalIndent(initialState, "", "  ")
+	stateFile := filepath.Join(orchestratorDir, "state.json")
+	if err := os.WriteFile(stateFile, stateData, 0644); err != nil {
+		return fmt.Errorf("failed to create orchestrator state: %w", err)
 	}
 
-	fmt.Println("✅ Team structure created successfully!")
+	fmt.Println("✅ Engineering Manager created successfully!")
 	fmt.Printf("📁 Workspace: %s\n\n", sm.GetWorkspacePath())
+	fmt.Println("ℹ️  The Engineering Manager will assess the task and request needed resources")
+	fmt.Println("   (Solutions Architect, Software Engineers, QA, Interns) dynamically.\n")
 
 	if autoRun {
 		// If TUI mode is requested, run orchestrator directly in current terminal (blocking)
 		if useTUITeam {
-			fmt.Println("🚀 Starting orchestration daemon with TUI...")
-			fmt.Println("   (Press 'q' to quit the orchestrator)")
-			fmt.Println()
+			// Don't print anything here - go straight to TUI
+			// to avoid interfering with terminal setup
+			time.Sleep(100 * time.Millisecond) // Brief pause to let terminal settle
 
-			// Get the path to the current executable
-			executable, err := os.Executable()
+			orch, err := orchestrator.NewOrchestrator(workspaceDir, false)
 			if err != nil {
-				return fmt.Errorf("failed to get executable path: %w", err)
+				return fmt.Errorf("failed to create orchestrator: %w", err)
 			}
 
-			// Run orchestrator with TUI in current terminal (blocking)
-			cmd := exec.Command(executable, "orchestrate", "--workspace", workspaceDir, "--tui")
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			return cmd.Run()
+			return orch.RunTUI()
 		}
 
 		// Non-TUI mode: spawn in background tmux session
@@ -202,10 +164,10 @@ func startTeam(cmd *cobra.Command, args []string) error {
 		time.Sleep(500 * time.Millisecond)
 
 		fmt.Println("🎉 Team is running! The orchestrator will:")
-		fmt.Println("  1. Spawn Claude instances for all personas")
-		fmt.Println("  2. Watch for new spawn requests")
-		fmt.Println("  3. Manage the team lifecycle")
-		fmt.Println("  4. Terminate completed sessions")
+		fmt.Println("  1. Spawn the Engineering Manager")
+		fmt.Println("  2. Manager assesses task and requests needed resources")
+		fmt.Println("  3. Orchestrator spawns requested team members dynamically")
+		fmt.Println("  4. Manage the team lifecycle and terminate completed sessions")
 		fmt.Println()
 		fmt.Printf("📊 View status: wildwest team status --workspace %s\n", workspaceDir)
 	} else {
@@ -213,10 +175,10 @@ func startTeam(cmd *cobra.Command, args []string) error {
 		fmt.Printf("   wildwest orchestrate --workspace %s\n\n", workspaceDir)
 
 		fmt.Println("The orchestrator will:")
-		fmt.Println("  1. Spawn Claude instances for Manager and Architect")
-		fmt.Println("  2. Watch for new engineer/intern requests")
-		fmt.Println("  3. Manage the team lifecycle")
-		fmt.Println("  4. Terminate completed sessions")
+		fmt.Println("  1. Spawn the Engineering Manager")
+		fmt.Println("  2. Manager will assess and request needed resources")
+		fmt.Println("  3. Orchestrator spawns requested team members")
+		fmt.Println("  4. Manage team lifecycle and terminate completed sessions")
 	}
 
 	return nil

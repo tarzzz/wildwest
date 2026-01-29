@@ -1,9 +1,11 @@
 package orchestrator
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,153 +17,164 @@ import (
 // TickMsg is sent every 2 seconds to refresh session data
 type TickMsg time.Time
 
-// AttachCompleteMsg is sent when returning from tmux attach
-type AttachCompleteMsg struct{}
-
-// MouseZone represents a clickable area for a persona
-type MouseZone struct {
-	SessionID string
-	X         int
-	Y         int
-	Width     int
-	Height    int
+// Component represents a node in the org chart
+type Component struct {
+	ID            string
+	Name          string
+	Role          string
+	Description   string
+	Emoji         string
+	Status        string // "idle", "active", "unavailable"
+	StatusMessage string // Brief statement about what they're doing
+	TmuxSpawned   bool   // Whether tmux session is spawned
+	TmuxSession   string // Tmux session name
 }
 
-// OrchestratorModel is the Bubble Tea model for the TUI
-type OrchestratorModel struct {
-	sessions       []*session.Session
-	sessionManager *session.SessionManager
-	workspace      string
-	mouseZones     []MouseZone
-	lastUpdate     time.Time
-	quitting       bool
-	width          int
-	height         int
-	selectedIndex  int // Index of selected persona for keyboard navigation
+// OrgChartModel is the TUI model for a static org chart
+type OrgChartModel struct {
+	components       []Component
+	selectedIndex    int
+	showingDetails   bool
+	width            int
+	height           int
+	orchestrator     *Orchestrator
+	sessionManager   *session.SessionManager
+	workspacePath    string
+	activeSessions   []*session.Session
+	logs             []string
+	maxLogs          int
+	tickCount        int  // Track ticks for less frequent updates
+	initialized      bool // Track if we've done initial load
+	attachToSession  string // Tmux session to attach to on exit
 }
 
 // Styles
 var (
+	listItemStyle = lipgloss.NewStyle().
+			PaddingLeft(2).
+			Foreground(lipgloss.Color("252"))
+
+	selectedListItemStyle = lipgloss.NewStyle().
+				PaddingLeft(2).
+				Foreground(lipgloss.Color("205")).
+				Bold(true).
+				Background(lipgloss.Color("235"))
+
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("39")). // Blue
-			Align(lipgloss.Center).
-			Padding(1, 0)
+			Foreground(lipgloss.Color("39")).
+			Padding(1, 2).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("39"))
 
-	activeStyle = lipgloss.NewStyle().
+	detailsStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("42")). // Green
-			Padding(0, 1).
-			Width(35)
-
-	idleStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("226")). // Yellow
-			Padding(0, 1).
-			Width(35)
-
-	stoppedStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")). // Gray
-			Padding(0, 1).
-			Width(35)
-
-	completedStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("46")). // Bright green
-			Padding(0, 1).
-			Width(35)
-
-	failedStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("196")). // Red
-			Padding(0, 1).
-			Width(35)
+			BorderForeground(lipgloss.Color("86")).
+			Padding(1, 2).
+			MarginTop(1).
+			MarginLeft(2)
 
 	footerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")). // Gray
-			Padding(1, 0).
-			Align(lipgloss.Center)
+			Foreground(lipgloss.Color("241")).
+			Padding(1, 2)
 
-	connectorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")) // Gray
+	dividerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
 
-	selectedStyle = lipgloss.NewStyle().
-			Border(lipgloss.ThickBorder()).
-			BorderForeground(lipgloss.Color("205")). // Bright pink/magenta
-			Padding(0, 1).
-			Width(35).
-			Bold(true)
+	activeStatusStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("42")).
+				Bold(true)
+
+	idleStatusStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("226"))
+
+	unavailableStatusStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240"))
+
+	statusMessageStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("245")).
+				Italic(true).
+				PaddingLeft(2)
+
+	logsHeaderStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("39")).
+			Bold(true).
+			PaddingLeft(2).
+			MarginTop(1)
+
+	logLineStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("250")).
+			PaddingLeft(2)
+
+	logsBorderStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true, false, false, false).
+			BorderForeground(lipgloss.Color("240")).
+			MarginTop(1)
 )
 
-// NewOrchestratorModel creates a new TUI model
-func NewOrchestratorModel(sm *session.SessionManager, workspace string) OrchestratorModel {
-	return OrchestratorModel{
+// NewOrgChartModel creates a new static org chart TUI
+func NewOrgChartModel(orch *Orchestrator, sm *session.SessionManager, workspacePath string) OrgChartModel {
+	// Start with empty components - will be populated from real sessions
+	return OrgChartModel{
+		components:     make([]Component, 0),
+		selectedIndex:  0,
+		showingDetails: true,  // Always show details
+		orchestrator:   orch,
 		sessionManager: sm,
-		workspace:      workspace,
-		mouseZones:     make([]MouseZone, 0),
-		sessions:       make([]*session.Session, 0),
-		lastUpdate:     time.Now(),
+		workspacePath:  workspacePath,
+		activeSessions: make([]*session.Session, 0),
+		logs:           make([]string, 0),
+		maxLogs:        5,
 	}
 }
 
-// Init initializes the model
-func (m OrchestratorModel) Init() tea.Cmd {
+func (m OrgChartModel) Init() tea.Cmd {
+	// Don't start orchestrator in TUI mode - just read sessions
+	// The orchestrator should be run separately with: wildwest orchestrate --workspace .database
+	// This keeps the TUI responsive
+
+	// Fire immediate tick for initialization, then regular ticks
 	return tea.Batch(
-		tea.EnterAltScreen,
+		func() tea.Msg { return TickMsg(time.Now()) },
 		tickCmd(),
 	)
 }
 
-// Update handles events
-func (m OrchestratorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// tickCmd returns a tick command that fires every 2 seconds
+func tickCmd() tea.Cmd {
+	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+		return TickMsg(t)
+	})
+}
+
+func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
-			m.quitting = true
+		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 
 		case "up", "k":
-			// Move selection up
 			if m.selectedIndex > 0 {
 				m.selectedIndex--
 			}
+			// Always show details for selected item
+			m.showingDetails = true
 
 		case "down", "j":
-			// Move selection down
-			if m.selectedIndex < len(m.sessions)-1 {
+			if m.selectedIndex < len(m.components)-1 {
 				m.selectedIndex++
 			}
+			// Always show details for selected item
+			m.showingDetails = true
 
-		case "left", "h":
-			// Move selection left (previous in same row)
-			if m.selectedIndex > 0 {
-				m.selectedIndex--
-			}
-
-		case "right", "l":
-			// Move selection right (next in same row)
-			if m.selectedIndex < len(m.sessions)-1 {
-				m.selectedIndex++
-			}
-
-		case "enter", "shift+enter":
-			// Attach to selected persona's tmux session
-			if m.selectedIndex >= 0 && m.selectedIndex < len(m.sessions) {
-				selectedSession := m.sessions[m.selectedIndex]
-				return m, attachToTmux(selectedSession.ID)
-			}
-		}
-
-	case tea.MouseMsg:
-		if msg.Button == tea.MouseButtonLeft {
-			// Check if click is within any persona zone
-			for i, zone := range m.mouseZones {
-				if msg.X >= zone.X && msg.X <= zone.X+zone.Width &&
-					msg.Y >= zone.Y && msg.Y <= zone.Y+zone.Height {
-					m.selectedIndex = i // Update selection to clicked persona
-					return m, attachToTmux(zone.SessionID)
+		case "a":
+			// Attach to selected tmux session
+			if m.selectedIndex >= 0 && m.selectedIndex < len(m.components) {
+				comp := m.components[m.selectedIndex]
+				if comp.TmuxSpawned && comp.TmuxSession != "" && comp.ID != "orchestrator" {
+					m.attachToSession = comp.TmuxSession
+					return m, tea.Quit
 				}
 			}
 		}
@@ -171,309 +184,228 @@ func (m OrchestratorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case TickMsg:
-		// Refresh session data
-		m.refreshSessions()
-		// Ensure selectedIndex is valid after refresh
-		if m.selectedIndex >= len(m.sessions) {
-			m.selectedIndex = len(m.sessions) - 1
-		}
-		if m.selectedIndex < 0 && len(m.sessions) > 0 {
-			m.selectedIndex = 0
-		}
-		return m, tickCmd()
+		// Do initial load on first tick
+		if !m.initialized {
+			m.initialized = true
+			m.addLog(fmt.Sprintf("Monitoring %s", m.workspacePath))
 
-	case AttachCompleteMsg:
-		// Returned from tmux attach, refresh and continue
-		m.refreshSessions()
+			if m.sessionManager != nil {
+				m.addLog("Loading sessions...")
+				sessions, err := m.sessionManager.GetActiveSessions()
+				if err != nil {
+					m.addLog(fmt.Sprintf("Error loading: %v", err))
+				} else {
+					m.addLog(fmt.Sprintf("Found %d sessions", len(sessions)))
+					m.activeSessions = sessions
+					m.updateComponentsFromSessions()
+					m.addLog(fmt.Sprintf("Created %d components", len(m.components)))
+					if len(sessions) > 0 {
+						m.addLog(m.generateStatusSummary())
+					} else {
+						m.addLog("No active sessions in workspace")
+					}
+				}
+			} else {
+				m.addLog("ERROR: SessionManager is nil")
+			}
+			return m, tickCmd()
+		}
+
+		m.tickCount++
+
+		// Only refresh sessions every 3 ticks (6 seconds) to avoid blocking UI
+		if m.tickCount%3 == 0 && m.sessionManager != nil {
+			sessions, err := m.sessionManager.GetActiveSessions()
+			if err == nil {
+				oldCount := len(m.activeSessions)
+				newCount := len(sessions)
+
+				// Only update if count changed
+				if newCount != oldCount {
+					m.activeSessions = sessions
+					m.updateComponentsFromSessions()
+
+					// Log status summary on changes
+					if newCount > 0 {
+						if newCount > oldCount {
+							m.addLog(m.generateSpawnMessage(sessions, m.activeSessions))
+						}
+						m.addLog(m.generateStatusSummary())
+					} else {
+						m.addLog("All sessions ended")
+					}
+
+					// Ensure selectedIndex is still valid
+					if m.selectedIndex >= len(m.components) {
+						m.selectedIndex = len(m.components) - 1
+					}
+					if m.selectedIndex < 0 && len(m.components) > 0 {
+						m.selectedIndex = 0
+					}
+				}
+			}
+		}
+		// Schedule next tick
 		return m, tickCmd()
 	}
 
 	return m, nil
 }
 
-// View renders the UI
-func (m OrchestratorModel) View() string {
-	if m.quitting {
-		return "Orchestrator stopped.\n"
-	}
+// addLog adds a log message with timestamp
+func (m *OrgChartModel) addLog(message string) {
+	timestamp := time.Now().Format("15:04:05")
+	logLine := fmt.Sprintf("[%s] %s", timestamp, message)
 
-	// Clear mouse zones for this render
-	m.mouseZones = make([]MouseZone, 0)
+	m.logs = append(m.logs, logLine)
 
-	var b strings.Builder
-	currentY := 0
-	personaIndex := 0 // Track which persona we're rendering
-
-	// Header
-	header := headerStyle.Render("🚀 WildWest Team Orchestrator")
-	b.WriteString(header)
-	b.WriteString("\n\n")
-	currentY += 3
-
-	if len(m.sessions) == 0 {
-		b.WriteString("\n")
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("  Waiting for team members..."))
-		b.WriteString("\n\n")
-		b.WriteString(footerStyle.Render("Press 'q' to quit"))
-		return b.String()
-	}
-
-	// Manager (level 1)
-	manager := m.getSessionByType(session.SessionTypeEngineeringManager)
-	if manager != nil {
-		isSelected := (personaIndex == m.selectedIndex)
-		box, height := m.renderPersonaBox(manager, currentY, personaIndex, isSelected)
-		personaIndex++
-		b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(box))
-		b.WriteString("\n")
-		currentY += height + 1
-
-		// Connector down
-		b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(connectorStyle.Render("        │")))
-		b.WriteString("\n")
-		currentY++
-	}
-
-	// Architect (level 2) + QA (cross-functional)
-	architect := m.getSessionByType(session.SessionTypeSolutionsArchitect)
-	qaList := m.getSessionsByType(session.SessionTypeQA)
-
-	if architect != nil || len(qaList) > 0 {
-		level2, height := m.renderLevel2(architect, qaList, currentY, &personaIndex)
-		b.WriteString(level2)
-		currentY += height
-	}
-
-	// Engineers (level 3)
-	engineers := m.getSessionsByType(session.SessionTypeSoftwareEngineer)
-	if len(engineers) > 0 {
-		engsView, height := m.renderEngineers(engineers, currentY, &personaIndex)
-		b.WriteString(engsView)
-		currentY += height
-	}
-
-	// Interns (level 4)
-	interns := m.getSessionsByType(session.SessionTypeIntern)
-	if len(interns) > 0 {
-		internsView, height := m.renderInterns(interns, currentY, &personaIndex)
-		b.WriteString(internsView)
-		currentY += height
-	}
-
-	// Footer
-	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("↑↓←→ or hjkl: navigate | Enter: attach to session | q: quit"))
-	b.WriteString("\n")
-
-	return b.String()
-}
-
-// refreshSessions updates the session list from the workspace
-func (m *OrchestratorModel) refreshSessions() {
-	sessions, err := m.sessionManager.GetActiveSessions()
-	if err == nil {
-		m.sessions = sessions
-		m.lastUpdate = time.Now()
+	// Keep only the last N logs
+	if len(m.logs) > m.maxLogs {
+		m.logs = m.logs[len(m.logs)-m.maxLogs:]
 	}
 }
 
-// getSessionByType returns the first session of a given type
-func (m *OrchestratorModel) getSessionByType(sessionType session.SessionType) *session.Session {
-	for _, sess := range m.sessions {
-		if sess.PersonaType == sessionType {
-			return sess
+// loadOrchestratorState loads orchestrator as top-level component
+func (m *OrgChartModel) loadOrchestratorState() {
+	orchestratorFile := filepath.Join(m.workspacePath, "orchestrator", "state.json")
+	data, err := os.ReadFile(orchestratorFile)
+	if err != nil {
+		// Orchestrator state not found, skip
+		return
+	}
+
+	var orch struct {
+		ID             string `json:"id"`
+		Status         string `json:"status"`
+		CurrentWork    string `json:"current_work"`
+		ActiveSessions int    `json:"active_sessions"`
+	}
+
+	if err := json.Unmarshal(data, &orch); err != nil {
+		return
+	}
+
+	// Prepend orchestrator as first component
+	orchestratorComp := Component{
+		ID:            "orchestrator",
+		Name:          "Orchestrator",
+		Role:          "System",
+		Description:   "Manages team spawning, monitoring, and coordination",
+		Status:        orch.Status,
+		StatusMessage: orch.CurrentWork,
+	}
+
+	m.components = append([]Component{orchestratorComp}, m.components...)
+}
+
+// updateComponentsFromSessions converts active sessions to components
+func (m *OrgChartModel) updateComponentsFromSessions() {
+	// Clear components
+	m.components = make([]Component, 0)
+
+	if len(m.activeSessions) == 0 {
+		// No sessions yet, show empty state
+		return
+	}
+
+	for _, sess := range m.activeSessions {
+		comp := Component{
+			ID:          sess.ID,
+			Name:        sess.PersonaName,
+			Role:        m.getRoleDescription(sess.PersonaType),
+			Emoji:       m.getPersonaEmoji(sess.PersonaType),
+			Description: m.getPersonaDescription(sess.PersonaType),
+			Status:      m.mapSessionStatus(sess.Status),
+			TmuxSpawned: sess.TmuxSpawned,
+			TmuxSession: sess.TmuxSession,
 		}
-	}
-	return nil
-}
 
-// getSessionsByType returns all sessions of a given type
-func (m *OrchestratorModel) getSessionsByType(sessionType session.SessionType) []*session.Session {
-	result := make([]*session.Session, 0)
-	for _, sess := range m.sessions {
-		if sess.PersonaType == sessionType {
-			result = append(result, sess)
+		// Use current_work from session.json if available
+		if sess.CurrentWork != "" {
+			comp.StatusMessage = sess.CurrentWork
+		} else {
+			// Fallback if worker hasn't updated current_work yet
+			switch sess.Status {
+			case "active":
+				comp.StatusMessage = "Working on assigned tasks"
+			case "idle":
+				comp.StatusMessage = "Available for work"
+			default:
+				comp.StatusMessage = "Session inactive"
+			}
 		}
+
+		m.components = append(m.components, comp)
 	}
-	return result
+
+	// Sort by persona type hierarchy (Manager, Architect, QA, Engineers, Interns)
+	m.sortComponentsByHierarchy()
 }
 
-// renderPersonaBox renders a single persona box
-func (m *OrchestratorModel) renderPersonaBox(sess *session.Session, currentY int, personaIndex int, isSelected bool) (string, int) {
-	// Get emoji based on persona type
-	emoji := m.getPersonaEmoji(sess.PersonaType)
-
-	// Get status indicator
-	statusEmoji := m.getStatusEmoji(sess.Status)
-
-	// Get current work
-	currentWork := m.sessionManager.GetCurrentWork(sess.ID)
-	if currentWork == "" {
-		currentWork = "Idle"
-	}
-	if len(currentWork) > 30 {
-		currentWork = currentWork[:27] + "..."
-	}
-
-	// Build content
-	content := fmt.Sprintf("%s %s (%s)\n", emoji, sess.PersonaType, sess.PersonaName)
-	content += fmt.Sprintf("Status: %s %s\n", statusEmoji, sess.Status)
-	content += fmt.Sprintf("Work: %s", currentWork)
-
-	// Choose style based on selection and status
-	var style lipgloss.Style
-	if isSelected {
-		style = selectedStyle
-	} else {
-		switch sess.Status {
-		case "active":
-			style = activeStyle
-		case "completed":
-			style = completedStyle
-		case "failed":
-			style = failedStyle
-		case "stopped":
-			style = stoppedStyle
+// sortComponentsByHierarchy sorts components by persona hierarchy
+func (m *OrgChartModel) sortComponentsByHierarchy() {
+	// Define order priority
+	getOrder := func(role string) int {
+		switch role {
+		case "Leader":
+			return 0
+		case "Architect":
+			return 1
+		case "QA":
+			return 2
+		case "Coder":
+			return 3
+		case "Support":
+			return 4
 		default:
-			style = idleStyle
+			return 5
 		}
 	}
 
-	rendered := style.Render(content)
-
-	// Track mouse zone (approximate - centered)
-	centerX := (m.width - 37) / 2
-	m.mouseZones = append(m.mouseZones, MouseZone{
-		SessionID: sess.ID,
-		X:         centerX,
-		Y:         currentY,
-		Width:     37,
-		Height:    5,
-	})
-
-	return rendered, 5
+	// Simple bubble sort by hierarchy
+	for i := 0; i < len(m.components); i++ {
+		for j := i + 1; j < len(m.components); j++ {
+			if getOrder(m.components[i].Role) > getOrder(m.components[j].Role) {
+				m.components[i], m.components[j] = m.components[j], m.components[i]
+			}
+		}
+	}
 }
 
-// renderLevel2 renders architect and QA side by side
-func (m *OrchestratorModel) renderLevel2(architect *session.Session, qaList []*session.Session, currentY int, personaIndex *int) (string, int) {
-	var b strings.Builder
-
-	if architect == nil && len(qaList) == 0 {
-		return "", 0
+// mapSessionStatus maps session status to UI status
+func (m *OrgChartModel) mapSessionStatus(sessionStatus string) string {
+	switch sessionStatus {
+	case "active":
+		return "active"
+	case "idle":
+		return "idle"
+	case "stopped", "failed":
+		return "unavailable"
+	default:
+		return "idle"
 	}
-
-	// Render architect
-	var architectBox string
-	if architect != nil {
-		isSelected := (*personaIndex == m.selectedIndex)
-		box, _ := m.renderPersonaBox(architect, currentY, *personaIndex, isSelected)
-		*personaIndex++
-		architectBox = box
-	} else {
-		architectBox = lipgloss.NewStyle().Width(37).Height(5).Render("")
-	}
-
-	// Render QA (show first one if multiple)
-	var qaBox string
-	if len(qaList) > 0 {
-		isSelected := (*personaIndex == m.selectedIndex)
-		box, _ := m.renderPersonaBox(qaList[0], currentY, *personaIndex, isSelected)
-		*personaIndex++
-		qaBox = box
-	} else {
-		qaBox = lipgloss.NewStyle().Width(37).Height(5).Render("")
-	}
-
-	// Join side by side
-	combined := lipgloss.JoinHorizontal(lipgloss.Top, architectBox, "  ", qaBox)
-	b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(combined))
-	b.WriteString("\n")
-
-	// Connector down from architect
-	if architect != nil {
-		b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(connectorStyle.Render("        │")))
-		b.WriteString("\n")
-	}
-
-	return b.String(), 7
 }
 
-// renderEngineers renders multiple engineers horizontally
-func (m *OrchestratorModel) renderEngineers(engineers []*session.Session, currentY int, personaIndex *int) (string, int) {
-	if len(engineers) == 0 {
-		return "", 0
+// getRoleDescription returns role description based on persona type
+func (m *OrgChartModel) getRoleDescription(personaType session.SessionType) string {
+	switch personaType {
+	case session.SessionTypeEngineeringManager:
+		return "Leader"
+	case session.SessionTypeSolutionsArchitect:
+		return "Architect"
+	case session.SessionTypeQA:
+		return "QA"
+	case session.SessionTypeSoftwareEngineer:
+		return "Coder"
+	case session.SessionTypeIntern:
+		return "Support"
+	default:
+		return "Unknown"
 	}
-
-	var b strings.Builder
-	startY := currentY
-
-	// Render up to 3 engineers per row
-	for i := 0; i < len(engineers); i += 3 {
-		end := i + 3
-		if end > len(engineers) {
-			end = len(engineers)
-		}
-
-		rowEngineers := engineers[i:end]
-		boxes := make([]string, len(rowEngineers))
-
-		for j, eng := range rowEngineers {
-			isSelected := (*personaIndex == m.selectedIndex)
-			box, _ := m.renderPersonaBox(eng, currentY, *personaIndex, isSelected)
-			*personaIndex++
-			boxes[j] = box
-		}
-
-		row := lipgloss.JoinHorizontal(lipgloss.Top, boxes...)
-		b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(row))
-		b.WriteString("\n")
-		currentY += 6
-	}
-
-	// Connector down to interns
-	b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(connectorStyle.Render("        │")))
-	b.WriteString("\n")
-	currentY++
-
-	return b.String(), currentY - startY
-}
-
-// renderInterns renders interns
-func (m *OrchestratorModel) renderInterns(interns []*session.Session, currentY int, personaIndex *int) (string, int) {
-	if len(interns) == 0 {
-		return "", 0
-	}
-
-	var b strings.Builder
-
-	// Render interns (up to 3 per row)
-	for i := 0; i < len(interns); i += 3 {
-		end := i + 3
-		if end > len(interns) {
-			end = len(interns)
-		}
-
-		rowInterns := interns[i:end]
-		boxes := make([]string, len(rowInterns))
-
-		for j, intern := range rowInterns {
-			isSelected := (*personaIndex == m.selectedIndex)
-			box, _ := m.renderPersonaBox(intern, currentY, *personaIndex, isSelected)
-			*personaIndex++
-			boxes[j] = box
-		}
-
-		row := lipgloss.JoinHorizontal(lipgloss.Top, boxes...)
-		b.WriteString(lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(row))
-		b.WriteString("\n")
-		currentY += 6
-	}
-
-	return b.String(), len(interns)/3*6
 }
 
 // getPersonaEmoji returns emoji for persona type
-func (m *OrchestratorModel) getPersonaEmoji(personaType session.SessionType) string {
+func (m *OrgChartModel) getPersonaEmoji(personaType session.SessionType) string {
 	switch personaType {
 	case session.SessionTypeEngineeringManager:
 		return "🎯"
@@ -490,42 +422,339 @@ func (m *OrchestratorModel) getPersonaEmoji(personaType session.SessionType) str
 	}
 }
 
-// getStatusEmoji returns emoji for status
-func (m *OrchestratorModel) getStatusEmoji(status string) string {
+// getPersonaDescription returns description for persona type
+func (m *OrgChartModel) getPersonaDescription(personaType session.SessionType) string {
+	switch personaType {
+	case session.SessionTypeEngineeringManager:
+		return "Oversees team, delegates tasks, reviews progress"
+	case session.SessionTypeSolutionsArchitect:
+		return "Designs system architecture, technical decisions"
+	case session.SessionTypeQA:
+		return "Tests features, ensures quality standards"
+	case session.SessionTypeSoftwareEngineer:
+		return "Implements features and functionality"
+	case session.SessionTypeIntern:
+		return "Assists with testing and documentation"
+	default:
+		return "Team member"
+	}
+}
+
+func (m OrgChartModel) View() string {
+	var b strings.Builder
+
+	// Header
+	header := headerStyle.Render("🚀 WildWest Team")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Render team list
+	b.WriteString(m.renderList())
+
+	// Show details if selected
+	if m.showingDetails {
+		b.WriteString("\n")
+		b.WriteString(m.renderDetails())
+	}
+
+	// Render logs section
+	b.WriteString(m.renderLogs())
+
+	// Footer
+	b.WriteString("\n")
+	instructions := "↑↓/jk: navigate | a: attach to session | q: quit"
+	b.WriteString(footerStyle.Render(instructions))
+
+	return b.String()
+}
+
+func (m OrgChartModel) renderList() string {
+	var b strings.Builder
+
+	if len(m.components) == 0 {
+		emptyMsg := listItemStyle.Render("  No active sessions yet...")
+		b.WriteString(emptyMsg)
+		b.WriteString("\n")
+		emptyMsg2 := listItemStyle.Render("  Waiting for orchestrator to spawn team members...")
+		b.WriteString(emptyMsg2)
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	for i, comp := range m.components {
+		statusMarker := m.getStatusMarker(comp.Status)
+
+		// Tree structure prefix
+		var prefix, continuation string
+		if i == len(m.components)-1 {
+			prefix = "└─"
+			continuation = "  "
+		} else {
+			prefix = "├─"
+			continuation = "│ "
+		}
+
+		// Main item line with tmux spawn indicator
+		var line string
+		tmuxIndicator := ""
+		// Only show tmux indicator for actual sessions (not orchestrator)
+		if comp.ID != "orchestrator" {
+			if comp.TmuxSpawned {
+				tmuxIndicator = " 🖥️"  // Spawned
+			} else {
+				tmuxIndicator = " ⏳"  // Not spawned yet
+			}
+		}
+
+		if i == m.selectedIndex {
+			line = fmt.Sprintf("%s %s  %s (%s)%s", prefix, statusMarker, comp.Name, comp.Role, tmuxIndicator)
+			b.WriteString(selectedListItemStyle.Render(line))
+		} else {
+			line = fmt.Sprintf("%s %s  %s (%s)%s", prefix, statusMarker, comp.Name, comp.Role, tmuxIndicator)
+			b.WriteString(listItemStyle.Render(line))
+		}
+		b.WriteString("\n")
+
+		// Show status message (multi-line support)
+		if comp.StatusMessage != "" {
+			// Split by newlines for multi-line status
+			statusLines := strings.Split(comp.StatusMessage, "\n")
+			for j, statusLine := range statusLines {
+				if strings.TrimSpace(statusLine) == "" {
+					continue
+				}
+
+				var statusPrefix string
+				if j == 0 {
+					statusPrefix = fmt.Sprintf("%s └─ ", continuation)
+				} else {
+					statusPrefix = fmt.Sprintf("%s    ", continuation)
+				}
+
+				if i == m.selectedIndex {
+					b.WriteString(statusMessageStyle.Render(statusPrefix + statusLine))
+				} else {
+					b.WriteString(dividerStyle.Render(statusPrefix + statusLine))
+				}
+				b.WriteString("\n")
+			}
+		}
+
+		// Vertical separator between items (except last)
+		if i < len(m.components)-1 {
+			b.WriteString(dividerStyle.Render("│"))
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
+}
+
+func (m OrgChartModel) getStatusMarker(status string) string {
 	switch status {
 	case "active":
-		return "🟢"
-	case "completed":
-		return "✅"
-	case "failed":
-		return "❌"
-	case "stopped":
-		return "⏸️"
+		return "🔄"  // Active/working
+	case "idle":
+		return "✅"  // Available/ready
+	case "unavailable":
+		return "⏸️"  // Paused/unavailable
 	default:
-		return "🟡"
+		return "✅"
 	}
 }
 
-// tickCmd returns a tick command that fires every 1 second
-func tickCmd() tea.Cmd {
-	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
-		return TickMsg(t)
-	})
+func (m OrgChartModel) renderLogs() string {
+	var b strings.Builder
+
+	b.WriteString(logsBorderStyle.Render(""))
+	b.WriteString("\n")
+	b.WriteString(logsHeaderStyle.Render("📋 Orchestrator Logs"))
+	b.WriteString("\n")
+
+	if len(m.logs) == 0 {
+		b.WriteString(logLineStyle.Render("Waiting for orchestrator activity..."))
+		b.WriteString("\n")
+	} else {
+		for _, log := range m.logs {
+			b.WriteString(logLineStyle.Render(log))
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
 }
 
-// attachToTmux attaches to a tmux session
-func attachToTmux(sessionID string) tea.Cmd {
-	return func() tea.Msg {
-		// Run tmux attach in a blocking way
-		// The Bubble Tea program will be suspended automatically
-		cmd := exec.Command("tmux", "attach", "-t", fmt.Sprintf("claude-%s", sessionID))
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		_ = cmd.Run()
-
-		// Return message to refresh after returning from tmux
-		return AttachCompleteMsg{}
+// generateStatusSummary creates a one-line status summary
+func (m *OrgChartModel) generateStatusSummary() string {
+	if len(m.components) == 0 {
+		return "No active sessions"
 	}
+
+	// Group by status
+	active := []string{}
+	idle := []string{}
+	unavailable := []string{}
+
+	for _, comp := range m.components {
+		name := comp.Name
+		switch comp.Status {
+		case "active":
+			active = append(active, name)
+		case "idle":
+			idle = append(idle, name)
+		case "unavailable":
+			unavailable = append(unavailable, name)
+		}
+	}
+
+	parts := []string{}
+	if len(active) > 0 {
+		parts = append(parts, strings.Join(active, ", ")+" working")
+	}
+	if len(idle) > 0 {
+		parts = append(parts, strings.Join(idle, ", ")+" available")
+	}
+	if len(unavailable) > 0 {
+		parts = append(parts, strings.Join(unavailable, ", ")+" unavailable")
+	}
+
+	return strings.Join(parts, "; ")
+}
+
+// generateSpawnMessage creates a message for newly spawned sessions
+func (m *OrgChartModel) generateSpawnMessage(newSessions, oldSessions []*session.Session) string {
+	// Find new session
+	oldIDs := make(map[string]bool)
+	for _, s := range oldSessions {
+		oldIDs[s.ID] = true
+	}
+
+	newNames := []string{}
+	for _, s := range newSessions {
+		if !oldIDs[s.ID] {
+			newNames = append(newNames, s.PersonaName)
+		}
+	}
+
+	if len(newNames) > 0 {
+		if len(newNames) == 1 {
+			return fmt.Sprintf("Spawning %s", newNames[0])
+		}
+		return fmt.Sprintf("Spawning %s", strings.Join(newNames, ", "))
+	}
+
+	return ""
+}
+
+// attachToTmux creates a command to attach to a tmux session
+// It clears the screen and replaces the current process with tmux attach
+func (m OrgChartModel) renderDetails() string {
+	if m.selectedIndex >= len(m.components) {
+		return ""
+	}
+
+	comp := m.components[m.selectedIndex]
+	statusMarker := m.getStatusMarker(comp.Status)
+
+	// Get status label
+	statusLabel := ""
+	switch comp.Status {
+	case "active":
+		statusLabel = "Working"
+	case "idle":
+		statusLabel = "Available"
+	case "unavailable":
+		statusLabel = "Unavailable"
+	}
+
+	// Build details with tmux information
+	var detailsBuilder strings.Builder
+	detailsBuilder.WriteString(fmt.Sprintf("%s\n\n", comp.Name))
+	detailsBuilder.WriteString(fmt.Sprintf("Role:        %s\n", comp.Role))
+	detailsBuilder.WriteString(fmt.Sprintf("Session ID:  %s\n", comp.ID))
+	detailsBuilder.WriteString(fmt.Sprintf("Status:      %s %s\n", statusMarker, statusLabel))
+
+	// Add tmux information
+	if comp.ID != "orchestrator" {
+		if comp.TmuxSpawned {
+			detailsBuilder.WriteString(fmt.Sprintf("Tmux:        🖥️  Spawned\n"))
+			if comp.TmuxSession != "" {
+				detailsBuilder.WriteString(fmt.Sprintf("Session:     %s\n", comp.TmuxSession))
+				detailsBuilder.WriteString(fmt.Sprintf("\nAttach:      ./%s/attach.sh\n", comp.ID))
+				detailsBuilder.WriteString(fmt.Sprintf("             tmux attach -t %s\n", comp.TmuxSession))
+			}
+		} else {
+			detailsBuilder.WriteString(fmt.Sprintf("Tmux:        ⏳ Not spawned yet\n"))
+		}
+	}
+
+	detailsBuilder.WriteString(fmt.Sprintf("\nCurrent Activity:\n%s\n", comp.StatusMessage))
+	detailsBuilder.WriteString(fmt.Sprintf("\nDescription:\n%s", comp.Description))
+
+	return detailsStyle.Render(detailsBuilder.String())
+}
+
+// RunStaticTUI starts the static org chart TUI with orchestrator
+func RunStaticTUI() error {
+	return RunStaticTUIWithWorkspace(".database")
+}
+
+// RunStaticTUIWithWorkspace starts the TUI with a specific workspace
+func RunStaticTUIWithWorkspace(workspacePath string) error {
+	// Create session manager directly (no orchestrator needed for read-only TUI)
+	sm, err := session.NewSessionManager(workspacePath)
+	if err != nil {
+		return fmt.Errorf("failed to create session manager: %w", err)
+	}
+
+	// Loop to allow returning to TUI after detaching from tmux
+	for {
+		// Load sessions BEFORE starting TUI so they're ready immediately
+		sessions, err := sm.GetActiveSessions()
+		if err != nil {
+			return fmt.Errorf("failed to load sessions: %w", err)
+		}
+
+		model := NewOrgChartModel(nil, sm, workspacePath)
+		// Pre-populate with loaded sessions
+		model.activeSessions = sessions
+		model.updateComponentsFromSessions()
+		model.loadOrchestratorState() // Add orchestrator at top level
+		model.initialized = true
+		model.addLog(fmt.Sprintf("Loaded %d sessions from %s", len(sessions), workspacePath))
+		if len(sessions) > 0 {
+			model.addLog(model.generateStatusSummary())
+		}
+
+		p := tea.NewProgram(
+			model,
+			tea.WithAltScreen(),
+		)
+		finalModel, err := p.Run()
+		if err != nil {
+			return err
+		}
+
+		// Check if we need to attach to a tmux session
+		if m, ok := finalModel.(OrgChartModel); ok && m.attachToSession != "" {
+			// Clear screen and exec into tmux
+			cmd := exec.Command("bash", "-c", fmt.Sprintf("clear && tmux attach -t %s", m.attachToSession))
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err := cmd.Run()
+			if err != nil {
+				// If tmux command fails, show error and return to TUI
+				fmt.Printf("Error attaching to tmux: %v\nPress Enter to return to TUI...", err)
+				fmt.Scanln()
+			}
+			// After detaching from tmux, loop back to TUI
+			continue
+		}
+
+		// User pressed 'q' to quit - exit the loop
+		break
+	}
+
+	return nil
 }

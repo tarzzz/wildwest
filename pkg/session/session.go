@@ -27,13 +27,17 @@ const (
 
 // Session represents a persona's active session
 type Session struct {
-	ID          string      `json:"id"`
-	PersonaType SessionType `json:"persona_type"`
-	PersonaName string      `json:"persona_name"`
-	StartTime   time.Time   `json:"start_time"`
-	Status      string      `json:"status"` // active, completed, failed
-	WorkspaceID string      `json:"workspace_id"`
-	PID         int         `json:"pid,omitempty"`
+	ID              string      `json:"id"`
+	PersonaType     SessionType `json:"persona_type"`
+	PersonaName     string      `json:"persona_name"`
+	StartTime       time.Time   `json:"start_time"`
+	Status          string      `json:"status"` // active, completed, failed
+	WorkspaceID     string      `json:"workspace_id"`
+	PID             int         `json:"pid,omitempty"`
+	CurrentWork     string      `json:"current_work,omitempty"`     // One-liner status updated by worker
+	TmuxSession     string      `json:"tmux_session,omitempty"`     // Tmux session name
+	TmuxSpawned     bool        `json:"tmux_spawned"`               // Whether tmux session is spawned
+	TmuxAttachCmd   string      `json:"tmux_attach_cmd,omitempty"`  // Command to attach to tmux session
 }
 
 // Workspace manages the shared database directory
@@ -293,6 +297,44 @@ func (sm *SessionManager) UpdateSessionStatus(sessionID string, status string) e
 	}
 
 	session.Status = status
+	return sm.saveSession(&session)
+}
+
+// UpdateCurrentWork updates the current work status for a session
+func (sm *SessionManager) UpdateCurrentWork(sessionID string, currentWork string) error {
+	sessionPath := filepath.Join(sm.workspacePath, sessionID, "session.json")
+
+	data, err := os.ReadFile(sessionPath)
+	if err != nil {
+		return err
+	}
+
+	var session Session
+	if err := json.Unmarshal(data, &session); err != nil {
+		return err
+	}
+
+	session.CurrentWork = currentWork
+	return sm.saveSession(&session)
+}
+
+// UpdateTmuxSession updates the tmux session information for a session
+func (sm *SessionManager) UpdateTmuxSession(sessionID string, tmuxSession string, spawned bool) error {
+	sessionPath := filepath.Join(sm.workspacePath, sessionID, "session.json")
+
+	data, err := os.ReadFile(sessionPath)
+	if err != nil {
+		return err
+	}
+
+	var session Session
+	if err := json.Unmarshal(data, &session); err != nil {
+		return err
+	}
+
+	session.TmuxSession = tmuxSession
+	session.TmuxSpawned = spawned
+	session.TmuxAttachCmd = fmt.Sprintf("tmux attach -t %s", tmuxSession)
 	return sm.saveSession(&session)
 }
 

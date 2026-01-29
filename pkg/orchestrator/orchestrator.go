@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tarzzz/wildwest/pkg/persona"
 	"github.com/tarzzz/wildwest/pkg/session"
 )
@@ -22,6 +22,22 @@ type Orchestrator struct {
 	pollInterval    time.Duration
 	verbose         bool
 	tuiMode         bool // Silent mode for TUI
+	startTime       time.Time
+	totalSpawned    int
+	completedCount  int
+	failedCount     int
+}
+
+// OrchestratorState represents the orchestrator's state in JSON
+type OrchestratorState struct {
+	ID                  string    `json:"id"`
+	Status              string    `json:"status"`
+	StartTime           time.Time `json:"start_time"`
+	CurrentWork         string    `json:"current_work"`
+	TotalSessionsSpawned int      `json:"total_sessions_spawned"`
+	ActiveSessions      int       `json:"active_sessions"`
+	CompletedSessions   int       `json:"completed_sessions"`
+	FailedSessions      int       `json:"failed_sessions"`
 }
 
 // log prints a message unless in TUI mode
@@ -50,14 +66,26 @@ func NewOrchestrator(workspacePath string, verbose bool) (*Orchestrator, error) 
 		return nil, err
 	}
 
-	return &Orchestrator{
+	orch := &Orchestrator{
 		sm:             sm,
 		personas:       personas,
 		activeSessions: make(map[string]bool),
 		workspacePath:  workspacePath,
 		pollInterval:   5 * time.Second,
 		verbose:        verbose,
-	}, nil
+		startTime:      time.Now(),
+	}
+
+	// Create orchestrator directory and initialize state
+	orchestratorDir := filepath.Join(workspacePath, "orchestrator")
+	if err := os.MkdirAll(orchestratorDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create orchestrator directory: %w", err)
+	}
+
+	// Save initial state
+	orch.saveState()
+
+	return orch, nil
 }
 
 // Run starts the orchestrator daemon
@@ -93,34 +121,9 @@ func (o *Orchestrator) Run() error {
 
 // RunTUI starts the orchestrator with interactive TUI
 func (o *Orchestrator) RunTUI() error {
-	// Enable TUI mode to suppress verbose output
-	o.tuiMode = true
-
-	// Start background goroutine to handle orchestrator logic
-	go func() {
-		ticker := time.NewTicker(o.pollInterval)
-		defer ticker.Stop()
-
-		// Initial scan (silent)
-		o.scanAndProcess()
-
-		for {
-			select {
-			case <-ticker.C:
-				o.scanAndProcess()
-			}
-		}
-	}()
-
-	// Start TUI
-	model := NewOrchestratorModel(o.sm, o.workspacePath)
-	model.refreshSessions()
-
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("TUI error: %w", err)
-	}
-	return nil
+	// TODO: Integrate with new static TUI once ready
+	// For now, just run the static TUI without orchestrator integration
+	return RunStaticTUI()
 }
 
 // scanAndProcess scans for requests and manages sessions
@@ -139,6 +142,9 @@ func (o *Orchestrator) scanAndProcess() error {
 	if err := o.monitorRunningSessions(); err != nil {
 		return err
 	}
+
+	// 4. Update orchestrator state
+	o.saveState()
 
 	return nil
 }
@@ -203,8 +209,13 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 	var personaType session.SessionType
 	var isInitialSpawn bool
 
-	if strings.HasPrefix(dirName, "software-engineer-request-") {
+	// Handle request directories (dynamic spawns)
+	if strings.HasPrefix(dirName, "solutions-architect-request-") {
+		personaType = session.SessionTypeSolutionsArchitect
+	} else if strings.HasPrefix(dirName, "software-engineer-request-") {
 		personaType = session.SessionTypeSoftwareEngineer
+	} else if strings.HasPrefix(dirName, "qa-request-") {
+		personaType = session.SessionTypeQA
 	} else if strings.HasPrefix(dirName, "intern-request-") {
 		personaType = session.SessionTypeIntern
 	} else if strings.HasPrefix(dirName, "engineering-manager-") {
@@ -218,6 +229,10 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 	} else if strings.HasPrefix(dirName, "software-engineer-") {
 		// Initial engineer spawn
 		personaType = session.SessionTypeSoftwareEngineer
+		isInitialSpawn = true
+	} else if strings.HasPrefix(dirName, "qa-") {
+		// Initial QA spawn
+		personaType = session.SessionTypeQA
 		isInitialSpawn = true
 	} else if strings.HasPrefix(dirName, "intern-") {
 		// Initial intern spawn
@@ -299,10 +314,10 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 		claudeBin = "claude"
 	}
 
-	// Create the initial Claude command with instructions to monitor files
-	// Run from project root, reference persona files with full paths
-	claudeCmd := fmt.Sprintf("%s --dangerously-skip-permissions --append-system-prompt \"$(cat %s/persona-instructions.md)\" 'IMPORTANT: You are working from the project root directory. Your persona files are located in: %s/\n\nCreate a background Bash task that monitors %s/instructions.md every 5 seconds. When new content is detected (file size increases), read and act on the new instructions immediately. Start this monitoring task now using:\n\nBash(PERSONA_DIR=%s; LAST_SIZE=0; while true; do if [ -f \"$PERSONA_DIR/instructions.md\" ]; then NEW_SIZE=$(wc -c < \"$PERSONA_DIR/instructions.md\" | tr -d \" \"); if [ \"$NEW_SIZE\" -gt \"${LAST_SIZE:-0}\" 2>/dev/null ]; then echo \"New instructions detected in $PERSONA_DIR/instructions.md\"; fi; LAST_SIZE=$NEW_SIZE; fi; sleep 5; done, run_in_background=true)\n\nThen begin working on your tasks from %s/tasks.md. All your work should be done in the current directory (project root), but reference your persona directory for instructions and tasks.'",
-		claudeBin, absSessionDir, absSessionDir, absSessionDir, absSessionDir, absSessionDir)
+	// Create the initial Claude command
+	// The persona-instructions.md file contains background task instructions
+	claudeCmd := fmt.Sprintf("%s --dangerously-skip-permissions --append-system-prompt \"$(cat %s/persona-instructions.md)\" \"Start both background tasks from your instructions, then begin working on your tasks.\"",
+		claudeBin, absSessionDir)
 
 	// Create tmux session and run Claude from current directory
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", tmuxSessionName, "bash", "-c", claudeCmd)
@@ -311,11 +326,25 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 		return fmt.Errorf("failed to start tmux session: %w (output: %s)", err, string(output))
 	}
 
+	// Update session.json with tmux info
+	if err := o.sm.UpdateTmuxSession(sess.ID, tmuxSessionName, true); err != nil {
+		o.log("⚠️  Failed to update tmux session info: %v\n", err)
+	}
+
+	// Write attach command file to persona directory
+	attachCmd := fmt.Sprintf("#!/bin/bash\nclear\ntmux attach -t %s\n", tmuxSessionName)
+	attachFile := filepath.Join(absSessionDir, "attach.sh")
+	if err := os.WriteFile(attachFile, []byte(attachCmd), 0755); err != nil {
+		o.log("⚠️  Failed to write attach command: %v\n", err)
+	}
+
 	// Mark session as active
 	o.activeSessions[sess.ID] = true
+	o.totalSpawned++
 
 	o.log("   ✅ Session: %s (tmux: %s)\n", sess.ID, tmuxSessionName)
 	o.log("   📎 Attach with: tmux attach -t %s\n", tmuxSessionName)
+	o.log("   📄 Or run: %s/attach.sh\n", absSessionDir)
 
 	return nil
 }
@@ -364,6 +393,7 @@ func (o *Orchestrator) processCompletedSessions() error {
 
 			// Mark as completed
 			o.sm.UpdateSessionStatus(sess.ID, "completed")
+			o.completedCount++
 
 			// Archive the directory
 			o.archiveSession(sess.ID)
@@ -438,8 +468,10 @@ func (o *Orchestrator) monitorRunningSessions() error {
 			if err == nil && o.areAllTasksCompleted(tasks) {
 				o.log("   📋 All tasks were completed\n")
 				o.sm.UpdateSessionStatus(sessionID, "completed")
+				o.completedCount++
 			} else {
 				o.log("   📋 Session did not complete all tasks\n")
+				o.failedCount++
 			}
 		}
 	}
@@ -561,8 +593,8 @@ Working Directory: PROJECT ROOT (current directory)
 ## Important Guidelines
 
 ### Automatic Instruction Monitoring
-- The system checks %s/instructions.md every 5 seconds automatically
-- When new instructions arrive, you'll be prompted to read them
+- A background task monitors your instructions.md every 5 seconds automatically
+- When new instructions arrive, you'll be notified
 - New instructions are appended with timestamps
 
 ### Update Your Tasks
@@ -580,73 +612,112 @@ Working Directory: PROJECT ROOT (current directory)
 
 `, p.Instructions, sess.ID, absPersonaDir, sess.PersonaName, absPersonaDir,
 	absPersonaDir, absPersonaDir, absPersonaDir, absPersonaDir,
-	absPersonaDir, absPersonaDir, absPersonaDir)
+	absPersonaDir, absPersonaDir)
 
 	// Add communication instructions
 	instructions += fmt.Sprintf(`
-## Communicating with Other Personas
+## Communicating with Other Agents
 
-To give instructions to another persona:
-1. List their directories: ls %s/solutions-architect-*/
+You can communicate with ANY agent - there are NO hierarchy restrictions.
+Write to any agent's instructions.md file to give them tasks, ask questions, or provide feedback.
+
+To send instructions to another agent:
+1. List available agents: ls %s/*/instructions.md
 2. Append to their instructions.md file with a timestamp header
 3. They will be automatically notified within 5 seconds
 
-Example:
-cat >> %s/solutions-architect-*/instructions.md <<EOF
+Examples:
 
+# Send instructions to Leader Agent
+cat >> %s/engineering-manager-*/instructions.md <<EOF
 ## Instructions from %s ($(date '+%%Y-%%m-%%d %%H:%%M:%%S'))
+We need to pivot the project direction. Please review and approve.
+EOF
 
+# Send instructions to Architect
+cat >> %s/solutions-architect-*/instructions.md <<EOF
+## Instructions from %s ($(date '+%%Y-%%m-%%d %%H:%%M:%%S'))
 Please design the database schema for the user management system.
-Include the following tables: users, roles, permissions.
-Provide an ERD diagram and SQL DDL statements.
-
 EOF
 
-`, absWorkspace, absWorkspace, sess.PersonaName)
-
-	// Add request instructions based on persona type
-	if sess.PersonaType == session.SessionTypeSoftwareEngineer {
-		instructions += fmt.Sprintf(`
-## Requesting Interns
-
-If you need help with tests, linting, or documentation:
-
-1. Create directory: %s/intern-request-{descriptive-name}/
-2. Create: intern-request-{name}/instructions.md with their tasks
-3. Project Manager will spawn the intern automatically
-4. Wait for intern-{timestamp}/ directory to appear
-
-Example:
-mkdir %s/intern-request-test-helper
-cat > %s/intern-request-test-helper/instructions.md <<EOF
-Write unit tests for auth.go with >80%% coverage
+# Send instructions to any Coder
+cat >> %s/software-engineer-*/instructions.md <<EOF
+## Instructions from %s ($(date '+%%Y-%%m-%%d %%H:%%M:%%S'))
+Implement the API endpoints according to the spec.
 EOF
 
-`, absWorkspace, absWorkspace, absWorkspace)
-	} else if sess.PersonaType == session.SessionTypeEngineeringManager || sess.PersonaType == session.SessionTypeSolutionsArchitect {
-		instructions += fmt.Sprintf(`
-## Requesting Software Engineers
+`, absWorkspace, absWorkspace, sess.PersonaName, absWorkspace, sess.PersonaName, absWorkspace, sess.PersonaName)
 
-If you need additional engineers:
+	// Add resource request instructions - ANY agent can request ANY resource
+	instructions += fmt.Sprintf(`
+## Requesting Additional Resources
 
-1. Create directory: %s/software-engineer-request-{descriptive-name}/
-2. Create: software-engineer-request-{name}/instructions.md with their tasks
-3. Project Manager will spawn the engineer automatically
-4. Wait for software-engineer-{timestamp}/ directory to appear
+ANY agent can request ANY type of resource - there are NO restrictions.
+Need an architect? Request one. Need the leader's input? Request a conversation.
 
-Example:
-mkdir %s/software-engineer-request-api-developer
-cat > %s/software-engineer-request-api-developer/instructions.md <<EOF
-Implement REST API endpoints according to the spec in shared/api-spec.md
+To request a new agent:
+1. Create directory: %s/{agent-type}-request-{descriptive-name}/
+2. Create: instructions.md in that directory with their initial task
+3. Orchestrator will spawn the agent automatically
+4. Directory will be renamed to {agent-type}-{timestamp}/
+
+Available agent types:
+- solutions-architect-request-* → Architecture Agent
+- software-engineer-request-* → Coding Agent
+- qa-request-* → QA Agent
+- intern-request-* → Support Agent
+
+Examples:
+
+# Request an Architect
+mkdir %s/solutions-architect-request-api-designer
+cat > %s/solutions-architect-request-api-designer/instructions.md <<EOF
+Design the REST API architecture for our user management system.
 EOF
 
-`, absWorkspace, absWorkspace, absWorkspace)
-	}
+# Request a Coder
+mkdir %s/software-engineer-request-backend
+cat > %s/software-engineer-request-backend/instructions.md <<EOF
+Implement the backend API endpoints according to the architecture spec.
+EOF
+
+# Request QA
+mkdir %s/qa-request-api-tester
+cat > %s/qa-request-api-tester/instructions.md <<EOF
+Write integration tests for the user management API.
+EOF
+
+# Request Support
+mkdir %s/intern-request-documentation
+cat > %s/intern-request-documentation/instructions.md <<EOF
+Write API documentation for all endpoints in OpenAPI format.
+EOF
+
+`, absWorkspace, absWorkspace, absWorkspace, absWorkspace, absWorkspace, absWorkspace, absWorkspace, absWorkspace, absWorkspace)
 
 	instructions += `
 ## Completion
 When all your tasks are marked "completed", you will be automatically terminated and your work will be archived.
 `
+
+	// Add background task instructions
+	instructions += fmt.Sprintf(`
+## IMPORTANT: Background Tasks
+
+Start these two background tasks IMMEDIATELY when you begin:
+
+### Task 1: Instruction Monitoring
+Monitor your instructions.md file every 5 seconds. When new instructions arrive (file size increases), read and process them.
+
+Bash(PERSONA_DIR=%s; LAST_SIZE=0; while true; do if [ -f "$PERSONA_DIR/instructions.md" ]; then NEW_SIZE=$(wc -c < "$PERSONA_DIR/instructions.md" | tr -d " "); if [ "$NEW_SIZE" -gt "${LAST_SIZE:-0}" 2>/dev/null ]; then echo "New instructions detected"; fi; LAST_SIZE=$NEW_SIZE; fi; sleep 5; done, run_in_background=true)
+
+### Task 2: Status Updates
+Update your session.json with current_work every 10 seconds. Extract just the task title from tasks.md (details shown in popup).
+
+Bash(PERSONA_DIR=%s; while true; do CURRENT=$(grep '^## Task:' $PERSONA_DIR/tasks.md 2>/dev/null | head -1 | sed 's/^## Task: //' || echo "No tasks assigned"); jq --arg status "$CURRENT" '.current_work = $status' $PERSONA_DIR/session.json > $PERSONA_DIR/session.tmp && mv $PERSONA_DIR/session.tmp $PERSONA_DIR/session.json; sleep 10; done, run_in_background=true)
+
+After starting both background tasks, begin working on your tasks from %s/tasks.md.
+`, absPersonaDir, absPersonaDir, absPersonaDir)
 
 	return instructions
 }
@@ -669,4 +740,38 @@ func (o *Orchestrator) GetStatus() (string, error) {
 	}
 
 	return status, nil
+}
+
+// saveState saves the orchestrator's current state to JSON
+func (o *Orchestrator) saveState() error {
+	state := OrchestratorState{
+		ID:                  "orchestrator",
+		Status:              "active",
+		StartTime:           o.startTime,
+		CurrentWork:         o.generateCurrentWork(),
+		TotalSessionsSpawned: o.totalSpawned,
+		ActiveSessions:      len(o.activeSessions),
+		CompletedSessions:   o.completedCount,
+		FailedSessions:      o.failedCount,
+	}
+
+	stateFile := filepath.Join(o.workspacePath, "orchestrator", "state.json")
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(stateFile, data, 0644)
+}
+
+// generateCurrentWork creates a concise status message
+func (o *Orchestrator) generateCurrentWork() string {
+	activeCount := len(o.activeSessions)
+	if activeCount == 0 {
+		return "Waiting for sessions to spawn"
+	}
+	if activeCount == 1 {
+		return "Monitoring 1 session"
+	}
+	return fmt.Sprintf("Monitoring %d sessions", activeCount)
 }
