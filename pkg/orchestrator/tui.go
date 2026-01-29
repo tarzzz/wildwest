@@ -728,6 +728,34 @@ func (m *OrgChartModel) generateSpawnMessage(newSessions, oldSessions []*session
 	return ""
 }
 
+// captureTmuxOutput captures the last N lines from a tmux session
+func (m OrgChartModel) captureTmuxOutput(tmuxSession string, lines int) string {
+	cmd := exec.Command("tmux", "capture-pane",
+		"-t", tmuxSession,
+		"-p",
+		"-S", fmt.Sprintf("-%d", lines))
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Session might not exist or no output yet
+		return ""
+	}
+
+	// Trim and return the output
+	result := strings.TrimSpace(string(output))
+	if result == "" {
+		return ""
+	}
+
+	// Limit the output to prevent huge popups
+	lines_slice := strings.Split(result, "\n")
+	if len(lines_slice) > lines {
+		lines_slice = lines_slice[len(lines_slice)-lines:]
+	}
+
+	return strings.Join(lines_slice, "\n")
+}
+
 // attachToTmux creates a command to attach to a tmux session
 // It clears the screen and replaces the current process with tmux attach
 func (m OrgChartModel) renderDetails() string {
@@ -773,6 +801,15 @@ func (m OrgChartModel) renderDetails() string {
 
 	detailsBuilder.WriteString(fmt.Sprintf("\nCurrent Activity:\n%s\n", comp.StatusMessage))
 	detailsBuilder.WriteString(fmt.Sprintf("\nDescription:\n%s", comp.Description))
+
+	// Add live output from tmux session (last 10 lines)
+	if comp.TmuxSpawned && comp.TmuxSession != "" {
+		liveOutput := m.captureTmuxOutput(comp.TmuxSession, 10)
+		if liveOutput != "" {
+			detailsBuilder.WriteString("\n\n━━━ Live Output (last 10 lines) ━━━\n")
+			detailsBuilder.WriteString(liveOutput)
+		}
+	}
 
 	return detailsStyle.Render(detailsBuilder.String())
 }
