@@ -26,7 +26,8 @@ type Orchestrator struct {
 	totalSpawned    int
 	completedCount  int
 	failedCount     int
-	tmuxSession     string // The tmux session this orchestrator is running in
+	tmuxSession     string   // The tmux session this orchestrator is running in
+	spawnedSessions []string // List of all spawned tmux session IDs
 }
 
 // OrchestratorState represents the orchestrator's state in JSON
@@ -40,6 +41,7 @@ type OrchestratorState struct {
 	CompletedSessions   int       `json:"completed_sessions"`
 	FailedSessions      int       `json:"failed_sessions"`
 	TmuxSession         string    `json:"tmux_session,omitempty"`
+	SpawnedSessions     []string  `json:"spawned_sessions"` // List of all spawned tmux session IDs
 }
 
 // log prints a message unless in TUI mode
@@ -69,13 +71,14 @@ func NewOrchestrator(workspacePath string, verbose bool) (*Orchestrator, error) 
 	}
 
 	orch := &Orchestrator{
-		sm:             sm,
-		personas:       personas,
-		activeSessions: make(map[string]bool),
-		workspacePath:  workspacePath,
-		pollInterval:   5 * time.Second,
-		verbose:        verbose,
-		startTime:      time.Now(),
+		sm:              sm,
+		personas:        personas,
+		activeSessions:  make(map[string]bool),
+		workspacePath:   workspacePath,
+		pollInterval:    5 * time.Second,
+		verbose:         verbose,
+		startTime:       time.Now(),
+		spawnedSessions: make([]string, 0),
 	}
 
 	// Detect tmux session name if running inside tmux
@@ -93,6 +96,9 @@ func NewOrchestrator(workspacePath string, verbose bool) (*Orchestrator, error) 
 	if err := os.MkdirAll(orchestratorDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create orchestrator directory: %w", err)
 	}
+
+	// Load existing state if it exists (to restore spawned sessions list)
+	orch.loadState()
 
 	// Save initial state
 	orch.saveState()
@@ -337,6 +343,9 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to start tmux session: %w (output: %s)", err, string(output))
 	}
+
+	// Track this spawned session
+	o.spawnedSessions = append(o.spawnedSessions, tmuxSessionName)
 
 	// Update session.json with tmux info
 	if err := o.sm.UpdateTmuxSession(sess.ID, tmuxSessionName, true); err != nil {
@@ -755,6 +764,28 @@ func (o *Orchestrator) GetStatus() (string, error) {
 }
 
 // saveState saves the orchestrator's current state to JSON
+// loadState loads existing orchestrator state from disk
+func (o *Orchestrator) loadState() error {
+	stateFile := filepath.Join(o.workspacePath, "orchestrator", "state.json")
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		// State file doesn't exist yet, that's ok
+		return nil
+	}
+
+	var state OrchestratorState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return err
+	}
+
+	// Restore spawned sessions list
+	if state.SpawnedSessions != nil {
+		o.spawnedSessions = state.SpawnedSessions
+	}
+
+	return nil
+}
+
 func (o *Orchestrator) saveState() error {
 	state := OrchestratorState{
 		ID:                  "orchestrator",
@@ -766,6 +797,7 @@ func (o *Orchestrator) saveState() error {
 		CompletedSessions:   o.completedCount,
 		FailedSessions:      o.failedCount,
 		TmuxSession:         o.tmuxSession,
+		SpawnedSessions:     o.spawnedSessions,
 	}
 
 	stateFile := filepath.Join(o.workspacePath, "orchestrator", "state.json")
@@ -787,4 +819,34 @@ func (o *Orchestrator) generateCurrentWork() string {
 		return "Monitoring 1 session"
 	}
 	return fmt.Sprintf("Monitoring %d sessions", activeCount)
+}
+
+// KillAllSessions kills all spawned tmux sessions including the orchestrator
+func (o *Orchestrator) KillAllSessions() error {
+	killed := 0
+	failed := 0
+
+	// Kill all spawned agent sessions
+	for _, tmuxSession := range o.spawnedSessions {
+		cmd := exec.Command("tmux", "kill-session", "-t", tmuxSession)
+		if err := cmd.Run(); err != nil {
+			// Session might already be dead, that's ok
+			failed++
+		} else {
+			killed++
+		}
+	}
+
+	// Kill the orchestrator's own tmux session if it exists
+	if o.tmuxSession != "" {
+		cmd := exec.Command("tmux", "kill-session", "-t", o.tmuxSession)
+		if err := cmd.Run(); err != nil {
+			failed++
+		} else {
+			killed++
+		}
+	}
+
+	o.log("💀 Killed %d sessions (%d already dead)\n", killed, failed)
+	return nil
 }

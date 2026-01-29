@@ -130,7 +130,7 @@ func NewOrgChartModel(orch *Orchestrator, sm *session.SessionManager, workspaceP
 
 func (m OrgChartModel) Init() tea.Cmd {
 	// Don't start orchestrator in TUI mode - just read sessions
-	// The orchestrator should be run separately with: wildwest orchestrate --workspace .database
+	// The orchestrator should be run separately with: wildwest orchestrate --workspace .ww-db
 	// This keeps the TUI responsive
 
 	// Fire immediate tick for initialization, then regular ticks
@@ -177,6 +177,10 @@ func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Quit
 				}
 			}
+
+		case "K":
+			// Kill all sessions (requires confirmation)
+			return m, m.killAllSessions()
 		}
 
 	case tea.WindowSizeMsg:
@@ -492,7 +496,7 @@ func (m OrgChartModel) View() string {
 
 	// Footer
 	b.WriteString("\n")
-	instructions := "↑↓/jk: navigate | d: details | a: attach to session | q: quit"
+	instructions := "↑↓/jk: navigate | d: details | a: attach | K: kill all | q: quit"
 	b.WriteString(footerStyle.Render(instructions))
 
 	return b.String()
@@ -587,6 +591,43 @@ func (m OrgChartModel) getStatusMarker(status string) string {
 		return "⏸️"  // Paused/unavailable
 	default:
 		return "✅"
+	}
+}
+
+// killAllSessions kills all spawned tmux sessions
+func (m OrgChartModel) killAllSessions() tea.Cmd {
+	return func() tea.Msg {
+		// Read orchestrator state to get list of spawned sessions
+		stateFile := filepath.Join(m.workspacePath, "orchestrator", "state.json")
+		data, err := os.ReadFile(stateFile)
+		if err != nil {
+			return tea.Quit()
+		}
+
+		var state struct {
+			SpawnedSessions []string `json:"spawned_sessions"`
+			TmuxSession     string   `json:"tmux_session"`
+		}
+		if err := json.Unmarshal(data, &state); err != nil {
+			return tea.Quit()
+		}
+
+		killed := 0
+		// Kill all spawned agent sessions
+		for _, tmuxSession := range state.SpawnedSessions {
+			cmd := exec.Command("tmux", "kill-session", "-t", tmuxSession)
+			if cmd.Run() == nil {
+				killed++
+			}
+		}
+
+		// Kill orchestrator session
+		if state.TmuxSession != "" {
+			cmd := exec.Command("tmux", "kill-session", "-t", state.TmuxSession)
+			cmd.Run()
+		}
+
+		return tea.Quit()
 	}
 }
 
@@ -738,7 +779,7 @@ func (m OrgChartModel) renderDetails() string {
 
 // RunStaticTUI starts the static org chart TUI with orchestrator
 func RunStaticTUI() error {
-	return RunStaticTUIWithWorkspace(".database")
+	return RunStaticTUIWithWorkspace(".ww-db")
 }
 
 // RunStaticTUIWithWorkspace starts the TUI with a specific workspace

@@ -27,7 +27,7 @@ func runDefaultCommand(cmd *cobra.Command, args []string) error {
 	task := strings.Join(args, " ")
 
 	// Set up team start parameters
-	workspaceDir = ".database"
+	workspaceDir = ".ww-db"
 	autoRun = true
 	useTUITeam = true
 
@@ -84,7 +84,7 @@ EXAMPLES:
   wildwest team start "Build a web scraper" --run --tui
 
   # Start orchestrator separately
-  wildwest orchestrate --workspace .database
+  wildwest orchestrate --workspace .ww-db
 
 For more information: https://github.com/tarzzz/wildwest`,
 	Version: "0.1.0",

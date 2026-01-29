@@ -1,348 +1,615 @@
-# Claude Wrapper Architecture
+# User Management API - System Architecture
 
-## Overview
+## Executive Summary
 
-Claude Wrapper is a multi-agent system where different personas (roles) collaborate on tasks through a shared workspace with individual directories.
+This document describes the system architecture for the User Management REST API. The API follows clean architecture principles with clear separation between layers, dependency injection for testability, and stateless design for horizontal scalability.
 
-## Directory Structure
+## Architecture Overview
 
-```
-.database/                          # Workspace root
-├── shared/                         # Shared files accessible to all personas
-│   ├── architecture.md
-│   ├── requirements.md
-│   └── common-utils.go
-├── solutions-architect-*/          # Architect's directory
-│   ├── session.json               # Session metadata
-│   ├── tasks.md                   # Architect's task list (only architect updates)
-│   ├── instructions.md            # Instructions from other personas (read-only for architect)
-│   ├── system-design.md           # Architect's outputs
-│   └── architecture-diagram.png
-├── engineering-manager-*/          # Manager's directory
-│   ├── session.json
-│   ├── tasks.md                   # Manager's task list (only manager updates)
-│   ├── instructions.md
-│   ├── task-breakdown.md
-│   └── review-notes.md
-├── software-engineer-1-*/          # Engineer 1's directory
-│   ├── session.json
-│   ├── tasks.md                   # Engineer's task list (only this engineer updates)
-│   ├── instructions.md            # Instructions from manager/architect
-│   ├── feature-implementation.go
-│   └── unit-tests.go
-└── intern-1-*/                     # Intern's directory
-    ├── session.json
-    ├── tasks.md                   # Intern's task list (only this intern updates)
-    ├── instructions.md
-    ├── documentation.md
-    └── test-cases.md
-```
+### Architecture Style
+**Clean Architecture (Hexagonal/Ports & Adapters)**
 
-## Communication Model
-
-### 1. Task Assignment Flow (Hierarchy)
+The system is organized in concentric layers where:
+- Inner layers contain business logic and are framework-agnostic
+- Outer layers handle infrastructure concerns (HTTP, database, etc.)
+- Dependencies point inward (outer layers depend on inner layers, never the reverse)
 
 ```
-Engineering Manager (TOP)
-         ↓ instructions.md
-Solutions Architect
-         ↓ instructions.md
-Software Engineers
-         ↓ instructions.md
-Interns (BOTTOM)
+┌─────────────────────────────────────────────────────────────┐
+│                    External Clients                          │
+│              (Web Browser, Mobile App, CLI)                  │
+└─────────────────┬───────────────────────────────────────────┘
+                  │ HTTPS
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Handler Layer                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │   Auth       │  │    User      │  │   Health     │      │
+│  │   Handlers   │  │   Handlers   │  │   Handlers   │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│         HTTP Request/Response Mapping                        │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+    ┌─────────────┼─────────────┐
+    │             │             │
+    ▼             ▼             ▼
+┌───────────┐ ┌───────────┐ ┌───────────┐
+│  Auth     │ │   Rate    │ │  Logger   │  Middleware Layer
+│  JWT      │ │  Limiter  │ │  Request  │
+└───────────┘ └───────────┘ └───────────┘
+    │             │             │
+    └─────────────┼─────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Service Layer                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │   Auth       │  │    User      │  │   Token      │      │
+│  │   Service    │  │   Service    │  │   Service    │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│         Business Logic & Use Cases                           │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Repository Layer                           │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │            User Repository Interface                  │   │
+│  │  • Create(user)    • GetByEmail(email)              │   │
+│  │  • GetByID(id)     • Update(user)                   │   │
+│  │  • Delete(id)      • List(filters)                  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                          ▲                                   │
+│                          │ implements                        │
+│                          │                                   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │       PostgreSQL User Repository                     │   │
+│  │         (Concrete Implementation)                    │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Database Layer                            │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              PostgreSQL Database                     │   │
+│  │         (pgx with connection pooling)                │   │
+│  │                                                      │   │
+│  │  Tables: users, sessions, audit_logs                │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Communication Rules:**
-- Engineering Manager → instructs Solutions Architect
-- Solutions Architect → instructs Software Engineers
-- Software Engineers → instruct Interns
-- Interns → do NOT instruct anyone (bottom of hierarchy)
+## Layer Responsibilities
 
-### 2. Task Management
+### 1. Handler Layer (Outer)
+**Location**: `internal/handler/`
+**Purpose**: HTTP interface and request/response transformation
 
-Each persona maintains their own `tasks.md`:
+**Responsibilities**:
+- Parse and validate HTTP requests
+- Route requests to appropriate service methods
+- Transform service results into HTTP responses
+- Handle HTTP-specific concerns (status codes, headers, cookies)
+- Input validation using struct tags
 
-```markdown
-# Tasks
+**Dependencies**: Service layer interfaces
 
-## Task: Design system architecture
-- **Status**: completed
-- **Assigned by**: system
-- **Created**: 2024-01-20 10:00:00
-
-## Task: Review engineer implementations
-- **Status**: in progress
-- **Assigned by**: engineering-manager-123
-- **Created**: 2024-01-20 11:00:00
-
-## Task: Create API documentation
-- **Status**: not started
-- **Assigned by**: engineering-manager-123
-- **Created**: 2024-01-20 11:30:00
+**Example Flow**:
+```
+POST /api/v1/auth/register
+  ↓
+AuthHandler.Register()
+  ↓ parse JSON body
+  ↓ validate input
+  ↓ call AuthService.Register()
+  ↓ format response
+  ↓ return 201 Created
 ```
 
-### 3. Instructions Format
+### 2. Middleware Layer (Cross-cutting)
+**Location**: `internal/middleware/`
+**Purpose**: Cross-cutting concerns applied to all/specific routes
 
-When assigning work to another persona, write to their `instructions.md`:
+**Components**:
+- **Auth Middleware**: JWT token validation, user context injection
+- **Rate Limiter**: Request throttling per IP/user
+- **Logger**: Request/response logging with correlation IDs
+- **Error Handler**: Standardized error response formatting
+- **CORS**: Cross-origin resource sharing configuration
+- **Recovery**: Panic recovery and graceful error handling
 
-```markdown
----
-## Instructions from engineering-manager-123 (2024-01-20 11:00:00)
-
-Please implement the user authentication feature based on the architecture in shared/architecture.md.
-
-Requirements:
-- Use JWT for tokens
-- Implement password hashing with bcrypt
-- Add rate limiting for login attempts
-- Write comprehensive unit tests
-
-Please update your tasks.md with progress and write your implementation to your directory.
+**Middleware Chain Example**:
+```
+Request → Logger → CORS → Rate Limiter → Auth → Handler → Response
 ```
 
-## Persona Constraints and Hierarchy
+### 3. Service Layer (Core Business Logic)
+**Location**: `internal/service/`
+**Purpose**: Business logic orchestration and use case implementation
 
-### Engineering Manager (Level 1 - TOP)
-- **Singleton**: Only one manager per workspace
-- **Position**: Top of hierarchy
-- **Can write to**: Solutions Architect's instructions.md, shared/
-- **Cannot write to**: Engineers or Interns directly (goes through architect)
-- **Responsibilities**:
-  - Understand project requirements
-  - Write detailed project summaries
-  - Provide high-level direction to Solutions Architect
-  - Review all major deliverables
-  - Make final technical decisions
-  - Coordinate overall project
-- **Communication**: Gives instructions TO Solutions Architect only
+**Services**:
 
-### Solutions Architect (Level 2)
-- **Singleton**: Only one architect per workspace
-- **Position**: Second in hierarchy, reports to Manager
-- **Can write to**: Software Engineers' instructions.md, shared/
-- **Cannot write to**: Manager's instructions.md (only receives from manager)
-- **Responsibilities**:
-  - Read instructions from Engineering Manager
-  - Design system architecture and data models
-  - Create system diagrams and technical specs
-  - Provide implementation guidance to Engineers
-  - Ensure architectural consistency
-- **Communication**:
-  - RECEIVES instructions FROM Engineering Manager
-  - GIVES instructions TO Software Engineers
+**AuthService**:
+- User registration with validation
+- Login with credential verification
+- Token generation and refresh
+- Password reset flow
+- Session management
 
-### Software Engineers (Level 3)
-- **Multiple allowed**: Can have many engineers
-- **Position**: Third in hierarchy, report to Architect
-- **Can write to**: Interns' instructions.md, shared/
-- **Cannot write to**: Manager or Architect's instructions.md (only receive)
-- **Responsibilities**:
-  - Read instructions from Solutions Architect
-  - Implement major features and functionality
-  - Write production-quality code
-  - Assign minor tasks to Interns
-  - Review intern work
-- **Communication**:
-  - RECEIVES instructions FROM Solutions Architect
-  - GIVES instructions TO Interns
+**UserService**:
+- User CRUD operations
+- Profile management
+- Role assignment
+- User listing with pagination
+- Soft delete implementation
 
-### Interns (Level 4 - BOTTOM)
-- **Multiple allowed**: Can have many interns
-- **Position**: Bottom of hierarchy, report to Engineers
-- **Can write to**: shared/ only
-- **Cannot write to**: Anyone's instructions.md (receive only)
-- **Responsibilities**:
-  - Read instructions from Software Engineers
-  - Handle minor tasks (tests, linting, documentation)
-  - Write unit tests for engineer code
-  - Fix code style and linting issues
-  - Learn and grow skills
-- **Communication**:
-  - RECEIVES instructions FROM Software Engineers
-  - Does NOT give instructions to anyone
+**TokenService**:
+- JWT token creation
+- Token validation and parsing
+- Refresh token management
+- Token revocation
 
-## Workflow Example
+**Responsibilities**:
+- Implement business rules and validation
+- Coordinate between multiple repositories
+- Transaction management
+- Error handling and business exceptions
+- Audit logging
 
-### Scenario: Building a REST API
+**Dependencies**: Repository interfaces, domain entities
 
-1. **Manager writes project summary**
-   ```
-   engineering-manager/
-   ├── tasks.md (initial task from system)
-   ├── project-requirements.md (creates detailed requirements)
-   └── writes to: solutions-architect/instructions.md
-       "Design a REST API for user management with auth, CRUD, and audit logging..."
-   ```
+### 4. Repository Layer (Data Access)
+**Location**: `internal/repository/`
+**Purpose**: Data persistence abstraction
 
-2. **Architect designs system**
-   ```
-   solutions-architect/
-   ├── reads: instructions.md (from manager)
-   ├── tasks.md (updates: "Design architecture" → in progress → completed)
-   ├── system-design.md (creates architecture doc)
-   ├── data-model.md (creates ER diagram and schema)
-   ├── api-spec.md (creates API contracts)
-   └── writes to:
-       - software-engineer-1/instructions.md ("Implement auth module per attached spec...")
-       - software-engineer-2/instructions.md ("Implement CRUD operations per data model...")
-       - shared/architecture.md (shares with team)
-   ```
+**Pattern**: Repository pattern with interfaces
 
-3. **Engineers implement features**
-   ```
-   software-engineer-1/
-   ├── reads: instructions.md (from architect)
-   ├── tasks.md (updates: "not started" → "in progress")
-   ├── auth.go (implements authentication)
-   ├── tasks.md (updates: "in progress" → "completed")
-   └── writes to: intern-1/instructions.md
-       "Write unit tests for auth.go, ensure >80% coverage, fix any linting issues"
-
-   software-engineer-2/
-   ├── reads: instructions.md (from architect)
-   ├── tasks.md (updates progress)
-   ├── crud.go (implements CRUD operations)
-   └── writes to: intern-2/instructions.md
-       "Add integration tests for CRUD endpoints, check for error handling"
-   ```
-
-4. **Interns handle minor tasks**
-   ```
-   intern-1/
-   ├── reads: instructions.md (from engineer-1)
-   ├── tasks.md (updates: "not started" → "in progress")
-   ├── auth_test.go (writes unit tests)
-   ├── fixes linting issues in auth.go
-   ├── tasks.md (updates: "in progress" → "completed")
-
-   intern-2/
-   ├── reads: instructions.md (from engineer-2)
-   ├── tasks.md (updates progress)
-   ├── crud_test.go (writes integration tests)
-   ├── tasks.md (marks completed)
-   ```
-
-5. **Manager reviews final deliverables**
-   ```
-   engineering-manager/
-   ├── reads: solutions-architect/system-design.md
-   ├── reads: software-engineer-1/auth.go
-   ├── reads: software-engineer-2/crud.go
-   ├── reads: intern-1/auth_test.go
-   ├── final-review.md (creates review document)
-   └── If changes needed, writes to: solutions-architect/instructions.md
-       "Adjust the auth flow to include MFA support..."
-   ```
-
-## Reading Other Personas' Work
-
-Any persona can read any other persona's directory:
-
+**UserRepository Interface**:
 ```go
-// Read engineer's output
-content := readFile(".database/software-engineer-1-*/auth.go")
-
-// Check engineer's progress
-tasks := readFile(".database/software-engineer-1-*/tasks.md")
-
-// Read shared architecture
-arch := readFile(".database/shared/architecture.md")
-```
-
-## File Naming Conventions
-
-### tasks.md
-- **One per persona**
-- **Format**: Markdown with structured task entries
-- **Updates**: Only by the owning persona
-- **Status values**: "not started", "in progress", "completed"
-
-### instructions.md
-- **One per persona**
-- **Format**: Markdown with timestamped sections
-- **Appended to**: By other personas assigning work
-- **Read by**: The owning persona
-
-### Output Files
-- **Naming**: Descriptive names (feature-name.go, api-docs.md, etc.)
-- **Format**: Any format appropriate to the content
-- **Location**: Persona's own directory
-- **Readable by**: All personas
-
-### Shared Files
-- **Location**: .database/shared/
-- **Purpose**: Resources needed by multiple personas
-- **Examples**: architecture.md, requirements.md, common-code.go
-- **Writable by**: Any persona
-
-## Session Management
-
-### Session Metadata (session.json)
-```json
-{
-  "id": "software-engineer-1-1706012345678",
-  "persona_type": "software-engineer",
-  "persona_name": "engineer-1",
-  "start_time": "2024-01-20T10:00:00Z",
-  "status": "active",
-  "workspace_id": "ws-1706012345",
-  "pid": 12345
+type UserRepository interface {
+    Create(ctx context.Context, user *domain.User) error
+    GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
+    GetByEmail(ctx context.Context, email string) (*domain.User, error)
+    Update(ctx context.Context, user *domain.User) error
+    Delete(ctx context.Context, id uuid.UUID) error
+    List(ctx context.Context, filters ListFilters) ([]*domain.User, int, error)
+    ExistsByEmail(ctx context.Context, email string) (bool, error)
 }
 ```
 
-### Session Lifecycle
-1. **Created**: Session directory and files initialized
-2. **Active**: Claude running with persona instructions
-3. **Completed**: Task finished successfully
-4. **Failed**: Error occurred during execution
-5. **Stopped**: Manually stopped by user
+**Implementations**:
+- `PostgresUserRepository`: Production PostgreSQL implementation
+- `MemoryUserRepository`: In-memory implementation for testing
 
-## Best Practices
+**Responsibilities**:
+- Execute database queries (CRUD operations)
+- Map between database rows and domain entities
+- Handle database errors and connection issues
+- Implement pagination and filtering
+- Transaction support
 
-### For Engineering Managers
-- Provide clear, comprehensive project requirements
-- Write detailed summaries that architect can design from
-- Review all major deliverables before project completion
-- Give instructions ONLY to Solutions Architect (not directly to engineers)
-- Make final decisions on approach and priorities
+### 5. Domain Layer (Core)
+**Location**: `internal/domain/`
+**Purpose**: Core business entities and rules
 
-### For Solutions Architects
-- Carefully read Manager's instructions before designing
-- Create clear architectural diagrams and data models
-- Write detailed technical specifications for Engineers
-- Share architecture documents in shared/ for team reference
-- Give instructions ONLY to Software Engineers (not to interns)
-- Ensure your design aligns with Manager's requirements
+**Entities**:
+- `User`: Core user entity with validation
+- `Role`: User role enumeration
+- `Session`: User session data
+- Domain-specific errors
 
-### For Software Engineers
-- Follow Architect's technical specifications precisely
-- Implement major features with production quality
-- Keep tasks.md updated with current status
-- Assign minor tasks (tests, linting) to Interns clearly
-- Review intern work before marking tasks complete
-- Share reusable code in shared/
+**Characteristics**:
+- Pure Go code (no external dependencies)
+- Business validation methods
+- Immutable where appropriate
+- Rich domain models
 
-### For Interns
-- Carefully read Engineer's instructions before starting
-- Focus on assigned minor tasks (tests, linting, docs)
-- Ask questions if instructions are unclear (via your own output files)
-- Write detailed comments explaining your work
-- Update tasks.md frequently with progress
-- Mark tasks completed only after thorough review
+**Example**:
+```go
+type User struct {
+    ID            uuid.UUID
+    Email         string
+    PasswordHash  string
+    Name          string
+    Bio           *string
+    AvatarURL     *string
+    Role          Role
+    IsActive      bool
+    EmailVerified bool
+    LastLogin     *time.Time
+    CreatedAt     time.Time
+    UpdatedAt     time.Time
+    DeletedAt     *time.Time
+}
 
-## Error Handling
+func (u *User) Validate() error {
+    // Business validation rules
+}
 
-### Session Failures
-- Session status set to "failed"
-- Other personas can continue
-- Manager should reassign work
+func (u *User) IsDeleted() bool {
+    return u.DeletedAt != nil
+}
+```
 
-### Communication Issues
-- Personas should check instructions.md regularly
-- If no response, write follow-up in instructions.md
-- Manager can intervene and reassign
+## Component Interactions
 
-### File Conflicts
-- Each persona has own directory → no conflicts
-- Shared/ should be used carefully
-- Manager coordinates shared/ updates
+### Registration Flow
+```
+1. Client sends POST /api/v1/auth/register
+2. Handler receives request → validates input
+3. Handler calls AuthService.Register()
+4. AuthService validates business rules:
+   - Email format and uniqueness
+   - Password strength requirements
+   - Required fields present
+5. AuthService hashes password (bcrypt)
+6. AuthService calls UserRepository.Create()
+7. Repository inserts user into PostgreSQL
+8. AuthService generates JWT token
+9. Handler returns 201 Created with token
+```
+
+### Authentication Flow
+```
+1. Client sends POST /api/v1/auth/login with credentials
+2. Handler validates input
+3. Handler calls AuthService.Login()
+4. AuthService calls UserRepository.GetByEmail()
+5. AuthService verifies password with bcrypt.Compare()
+6. AuthService calls TokenService.GenerateToken()
+7. TokenService creates JWT with user claims
+8. Handler returns 200 OK with token
+```
+
+### Protected Endpoint Flow
+```
+1. Client sends GET /api/v1/users/me with Authorization header
+2. Auth middleware extracts JWT token
+3. Middleware validates token signature and expiry
+4. Middleware extracts user ID from claims
+5. Middleware injects user context
+6. Handler calls UserService.GetByID()
+7. Service calls UserRepository.GetByID()
+8. Repository queries database
+9. Handler returns 200 OK with user data
+```
+
+## Security Architecture
+
+### Authentication
+- **JWT Tokens**: Stateless authentication with signed tokens
+- **Token Structure**:
+  ```json
+  {
+    "sub": "user-uuid",
+    "email": "user@example.com",
+    "role": "user",
+    "exp": 1234567890,
+    "iat": 1234567890
+  }
+  ```
+- **Token Lifetime**: 15 minutes for access tokens, 7 days for refresh tokens
+- **Signing Algorithm**: HS256 (HMAC with SHA-256)
+
+### Authorization
+- **Role-Based Access Control (RBAC)**
+- **Roles**: Admin, User, Guest
+- **Middleware Enforcement**: `RequireRole()` middleware
+- **Permissions**:
+  - Admin: Full access to all endpoints
+  - User: Read/update own profile, read public data
+  - Guest: Read public data only
+
+### Password Security
+- **Hashing**: bcrypt with cost factor 12
+- **Salt**: Automatic per password (built into bcrypt)
+- **Storage**: Only hashed passwords stored, never plaintext
+- **Validation**: Minimum 8 characters, complexity requirements
+
+### Input Validation
+- **Request Validation**: Struct tags with go-playground/validator
+- **SQL Injection Prevention**: Parameterized queries with pgx
+- **XSS Prevention**: JSON encoding escapes special characters
+- **CSRF Protection**: Stateless API (no cookies for auth)
+
+### Rate Limiting
+- **Strategy**: Token bucket algorithm
+- **Limits**: 100 requests per minute per IP
+- **Auth Endpoints**: Stricter limits (10 requests per minute)
+- **Implementation**: In-memory store with sliding window
+
+## Data Flow Architecture
+
+### Request Processing Pipeline
+```
+HTTP Request
+  ↓
+[CORS Middleware]
+  ↓
+[Logger Middleware] ← Log request
+  ↓
+[Recovery Middleware] ← Catch panics
+  ↓
+[Rate Limit Middleware] ← Check request quota
+  ↓
+[Auth Middleware] ← Validate JWT (if protected route)
+  ↓
+[Handler] ← Route to appropriate handler
+  ↓
+[Service] ← Execute business logic
+  ↓
+[Repository] ← Data access
+  ↓
+[Database] ← Query execution
+  ↓
+[Repository] ← Map results
+  ↓
+[Service] ← Transform data
+  ↓
+[Handler] ← Format response
+  ↓
+HTTP Response
+```
+
+### Error Handling Flow
+```
+Error occurs at any layer
+  ↓
+Layer wraps error with context
+  ↓
+Error bubbles up through layers
+  ↓
+Handler catches error
+  ↓
+Error middleware formats error
+  ↓
+Standardized JSON error response:
+{
+  "error": {
+    "code": "USER_NOT_FOUND",
+    "message": "User with ID xyz not found",
+    "timestamp": "2024-01-20T10:00:00Z"
+  }
+}
+```
+
+## Scalability Architecture
+
+### Horizontal Scaling
+- **Stateless Design**: No session state stored in application
+- **JWT Tokens**: Self-contained, no server-side session storage
+- **Load Balancer**: Multiple API instances behind load balancer
+- **Shared Database**: All instances connect to same PostgreSQL cluster
+
+### Database Optimization
+- **Connection Pooling**: pgxpool with 25 max connections
+- **Indexes**: On frequently queried columns (email, id)
+- **Prepared Statements**: Query plan caching
+- **Read Replicas**: Future support for read scaling
+
+### Caching Strategy (Future)
+- **User Data**: Redis cache for frequently accessed profiles
+- **Token Blacklist**: Redis for revoked tokens
+- **Rate Limits**: Redis for distributed rate limiting
+- **TTL**: Short-lived cache (5-15 minutes)
+
+### Performance Targets
+- **Response Time**: < 200ms for 95th percentile
+- **Throughput**: 1000+ requests per second per instance
+- **Concurrent Users**: 1000+ simultaneous connections
+- **Database Queries**: < 50ms for simple queries
+
+## Deployment Architecture
+
+### Container Structure
+```
+┌────────────────────────────────────────┐
+│      Docker Container (API)            │
+│  ┌──────────────────────────────────┐  │
+│  │  Go Binary (user-api)            │  │
+│  │  Port: 8080                      │  │
+│  │  Environment Variables           │  │
+│  └──────────────────────────────────┘  │
+│                                        │
+│  Base: alpine:latest                   │
+│  Size: ~20-30 MB                       │
+└────────────────────────────────────────┘
+         │
+         │ Network: bridge
+         ▼
+┌────────────────────────────────────────┐
+│   Docker Container (PostgreSQL)        │
+│  ┌──────────────────────────────────┐  │
+│  │  PostgreSQL 15                   │  │
+│  │  Port: 5432                      │  │
+│  │  Volume: /var/lib/postgresql/data│  │
+│  └──────────────────────────────────┘  │
+└────────────────────────────────────────┘
+```
+
+### Environment Configuration
+- **Development**: Local Docker Compose
+- **Staging**: Kubernetes cluster
+- **Production**: Kubernetes cluster with auto-scaling
+
+### Health Monitoring
+- **Health Check Endpoint**: GET /health
+  - Returns: Database connectivity, version, uptime
+- **Metrics Endpoint**: GET /metrics
+  - Prometheus-compatible metrics
+  - Request rates, latency, error rates
+
+## Technology Stack
+
+| Layer | Technology | Justification |
+|-------|-----------|---------------|
+| Web Framework | Gin | High performance, rich middleware |
+| Database | PostgreSQL 15 | ACID compliance, JSON support |
+| Database Driver | pgx | Native PostgreSQL driver |
+| Authentication | JWT (golang-jwt/jwt v5) | Stateless, standard |
+| Password Hashing | bcrypt | Industry standard |
+| Configuration | viper | Flexible, 12-factor |
+| Logging | zerolog | High performance, structured |
+| Validation | validator | Declarative, comprehensive |
+| Testing | testify, dockertest | Assertions, integration tests |
+| Documentation | swaggo/swag | OpenAPI generation |
+| Container | Docker | Multi-stage builds |
+
+## Design Patterns
+
+### Dependency Injection
+- Constructor injection for services and repositories
+- Interface-based dependencies for testability
+- Composition over inheritance
+
+### Repository Pattern
+- Abstract data access behind interfaces
+- Enable easy mocking for tests
+- Support multiple implementations (Postgres, Memory)
+
+### Factory Pattern
+- Configuration loading and validation
+- Database connection creation
+- Logger initialization
+
+### Middleware Chain
+- Request processing pipeline
+- Composable cross-cutting concerns
+- Clean separation of concerns
+
+## Testing Strategy
+
+### Unit Tests
+- Test each layer independently
+- Mock dependencies using interfaces
+- Coverage target: 80%+
+- Location: Next to implementation files
+
+### Integration Tests
+- Test full request/response cycle
+- Use real PostgreSQL (dockertest)
+- Test authentication flows
+- Test error scenarios
+- Location: `tests/integration/`
+
+### Test Pyramid
+```
+      /\
+     /  \    E2E Tests (few)
+    /────\
+   /      \  Integration Tests (some)
+  /────────\
+ /          \ Unit Tests (many)
+/────────────\
+```
+
+## Error Handling Strategy
+
+### Error Types
+- **Domain Errors**: Business rule violations (user already exists)
+- **Repository Errors**: Database failures (connection lost)
+- **Validation Errors**: Input validation failures (invalid email)
+- **Authentication Errors**: Auth failures (invalid token)
+
+### Error Response Format
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable message",
+    "details": {
+      "field": "email",
+      "reason": "already_exists"
+    },
+    "timestamp": "2024-01-20T10:00:00Z",
+    "request_id": "uuid"
+  }
+}
+```
+
+### HTTP Status Codes
+- 200: Success
+- 201: Created
+- 400: Bad Request (validation)
+- 401: Unauthorized (auth required)
+- 403: Forbidden (insufficient permissions)
+- 404: Not Found
+- 429: Too Many Requests (rate limit)
+- 500: Internal Server Error
+
+## Configuration Management
+
+### Environment Variables
+```
+APP_ENV=production
+APP_PORT=8080
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=userapi
+DB_USER=apiuser
+DB_PASSWORD=<secret>
+JWT_SECRET=<secret>
+JWT_EXPIRY=15m
+RATE_LIMIT_REQUESTS=100
+LOG_LEVEL=info
+```
+
+### Configuration Layers
+1. Default values (code)
+2. Configuration file (.env)
+3. Environment variables (override)
+4. Command-line flags (highest priority)
+
+## Future Enhancements
+
+### Phase 2 Considerations
+- Redis caching layer
+- Email service integration
+- OAuth2 social login
+- Two-factor authentication
+- User activity logging
+- Admin dashboard API
+- Webhook support
+- API versioning strategy
+
+### Scalability Improvements
+- Read replicas for database
+- CDN for static assets
+- Message queue for async tasks
+- Distributed tracing (OpenTelemetry)
+- Service mesh (Istio)
+
+## Appendix: Key Design Decisions
+
+### Why Clean Architecture?
+- **Testability**: Easy to mock and test layers independently
+- **Maintainability**: Clear separation of concerns
+- **Flexibility**: Easy to swap implementations (database, framework)
+- **Scalability**: Layers can be optimized independently
+
+### Why Gin Framework?
+- Proven performance in production
+- Rich middleware ecosystem
+- Large community support
+- Built-in validation
+
+### Why PostgreSQL?
+- ACID compliance for data integrity
+- Rich type system
+- Excellent performance
+- Mature and battle-tested
+- JSON support for flexibility
+
+### Why JWT for Auth?
+- Stateless (no server-side session storage)
+- Scales horizontally easily
+- Self-contained (includes user info)
+- Industry standard
+
+---
+
+**Document Version**: 1.0
+**Last Updated**: 2026-01-27
+**Author**: Solutions Architect (berners-lee)
+**Status**: Phase 1 Deliverable

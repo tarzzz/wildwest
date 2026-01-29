@@ -22,7 +22,7 @@ This is a read-only view that shows:
 
 func init() {
 	rootCmd.AddCommand(trackCmd)
-	trackCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".database", "workspace directory")
+	trackCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".ww-db", "workspace directory")
 }
 
 func trackTeam(cmd *cobra.Command, args []string) error {

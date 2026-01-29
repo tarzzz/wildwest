@@ -102,7 +102,7 @@ type SessionManager struct {
 // NewSessionManager creates a new session manager
 func NewSessionManager(workspacePath string) (*SessionManager, error) {
 	if workspacePath == "" {
-		workspacePath = ".database"
+		workspacePath = ".ww-db"
 	}
 
 	// Create workspace directory structure

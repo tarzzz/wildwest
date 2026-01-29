@@ -31,8 +31,8 @@ The orchestrator runs in its own tmux session in the background.
 You can attach to it at any time to monitor progress.
 
 Example:
-  wildwest orchestrate --workspace .database
-  wildwest orchestrate --workspace .database --tui  # Interactive TUI
+  wildwest orchestrate --workspace .ww-db
+  wildwest orchestrate --workspace .ww-db --tui  # Interactive TUI
 
   # Then attach to monitor:
   tmux attach -t claude-orchestrator-*`,
@@ -41,7 +41,7 @@ Example:
 
 func init() {
 	rootCmd.AddCommand(orchestrateCmd)
-	orchestrateCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".database", "workspace directory")
+	orchestrateCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".ww-db", "workspace directory")
 	orchestrateCmd.Flags().BoolVar(&useTUI, "tui", true, "run orchestrator with interactive TUI (default)")
 }
 

@@ -45,16 +45,16 @@ Your role is to:
 ## How Personas Request New Team Members
 
 **Engineering Manager or Solutions Architect** can request Software Engineers by:
-- Creating a directory: .database/software-engineer-request-{name}/
+- Creating a directory: .ww-db/software-engineer-request-{name}/
 - Creating an initial instructions.md in that directory
 
 **Software Engineers** can request Interns by:
-- Creating a directory: .database/intern-request-{name}/
+- Creating a directory: .ww-db/intern-request-{name}/
 - Creating an initial instructions.md in that directory
 
 ## Your Responsibilities
 
-1. **Watch for New Directories**: Scan .database/ for *-request-* directories
+1. **Watch for New Directories**: Scan .ww-db/ for *-request-* directories
 2. **Spawn Claude Instances**: Start actual Claude Code sessions for request directories
 3. **Rename Directories**: Rename from *-request-* to active session ID after spawning
 4. **Monitor Progress**: Check all sessions' tasks.md for completion
@@ -130,28 +130,28 @@ When you receive a task, FIRST analyze what resources are needed:
 You can request ANY role by creating a request directory:
 
 ### Request Solutions Architect
-1. Create: .database/solutions-architect-request-{descriptive-name}/
-2. Create: .database/solutions-architect-request-{name}/instructions.md
+1. Create: .ww-db/solutions-architect-request-{descriptive-name}/
+2. Create: .ww-db/solutions-architect-request-{name}/instructions.md
 3. Orchestrator spawns Claude instance
-4. Directory becomes: .database/solutions-architect-{timestamp}/
+4. Directory becomes: .ww-db/solutions-architect-{timestamp}/
 
 ### Request Software Engineers
-1. Create: .database/software-engineer-request-{descriptive-name}/
-2. Create: .database/software-engineer-request-{name}/instructions.md
+1. Create: .ww-db/software-engineer-request-{descriptive-name}/
+2. Create: .ww-db/software-engineer-request-{name}/instructions.md
 3. Orchestrator spawns Claude instance
-4. Directory becomes: .database/software-engineer-{timestamp}/
+4. Directory becomes: .ww-db/software-engineer-{timestamp}/
 
 ### Request QA Engineers
-1. Create: .database/qa-request-{descriptive-name}/
-2. Create: .database/qa-request-{name}/instructions.md
+1. Create: .ww-db/qa-request-{descriptive-name}/
+2. Create: .ww-db/qa-request-{name}/instructions.md
 3. Orchestrator spawns Claude instance
-4. Directory becomes: .database/qa-{timestamp}/
+4. Directory becomes: .ww-db/qa-{timestamp}/
 
 ### Request Interns
-1. Create: .database/intern-request-{descriptive-name}/
-2. Create: .database/intern-request-{name}/instructions.md
+1. Create: .ww-db/intern-request-{descriptive-name}/
+2. Create: .ww-db/intern-request-{name}/instructions.md
 3. Orchestrator spawns Claude instance
-4. Directory becomes: .database/intern-{timestamp}/
+4. Directory becomes: .ww-db/intern-{timestamp}/
 
 ## Example Workflow
 
@@ -159,8 +159,8 @@ For task "Build REST API for user management":
 
 1. Assess: This needs architecture design and implementation
 2. Request Solutions Architect first:
-   mkdir .database/solutions-architect-request-api-designer
-   cat > .database/solutions-architect-request-api-designer/instructions.md <<EOF
+   mkdir .ww-db/solutions-architect-request-api-designer
+   cat > .ww-db/solutions-architect-request-api-designer/instructions.md <<EOF
    Design the architecture for a REST API for user management.
    Include: API endpoints, data models, authentication, authorization.
    EOF

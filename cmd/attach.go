@@ -36,10 +36,10 @@ This helps keep the workspace clean by archiving completed or stopped sessions.`
 func init() {
 	rootCmd.AddCommand(attachCmd)
 	rootCmd.AddCommand(cleanupCmd)
-	attachCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".database", "workspace directory")
+	attachCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".ww-db", "workspace directory")
 	attachCmd.Flags().BoolVarP(&listOnly, "list", "l", false, "list all running sessions")
 	attachCmd.Flags().StringVarP(&sessionFilter, "filter", "f", "", "filter sessions by type (e.g., engineer, intern)")
-	cleanupCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".database", "workspace directory")
+	cleanupCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".ww-db", "workspace directory")
 }
 
 func attachToSession(cmd *cobra.Command, args []string) error {

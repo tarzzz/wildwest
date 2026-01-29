@@ -56,7 +56,7 @@ func init() {
 	teamCmd.AddCommand(teamStatusCmd)
 	teamCmd.AddCommand(teamStopCmd)
 
-	teamStartCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".database", "workspace directory for team collaboration")
+	teamStartCmd.Flags().StringVarP(&workspaceDir, "workspace", "w", ".ww-db", "workspace directory for team collaboration")
 	teamStartCmd.Flags().IntVar(&numEngineers, "engineers", 1, "number of software engineer sessions")
 	teamStartCmd.Flags().IntVar(&numInterns, "interns", 0, "number of intern sessions")
 	teamStartCmd.Flags().BoolVar(&autoRun, "run", false, "automatically start orchestration daemon after team creation")
@@ -215,7 +215,7 @@ Each persona has their own directory:
 
 ### Assigning Work to Others
 - To assign work to another persona, write to their instructions.md
-- Example: Write to .database/<other-session-id>/instructions.md
+- Example: Write to .ww-db/<other-session-id>/instructions.md
 - Always include a timestamp header like: "## Instructions from %s (YYYY-MM-DD HH:MM:SS)"
 - Be clear and specific in your instructions
 
@@ -225,7 +225,7 @@ Each persona has their own directory:
 - Read their output files to review their work
 
 ### Shared Resources
-- Use .database/shared/ for files that everyone needs access to
+- Use .ww-db/shared/ for files that everyone needs access to
 - Examples: architecture docs, shared configs, common utilities
 
 ## Communication Protocol
