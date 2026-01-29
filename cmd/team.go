@@ -126,28 +126,15 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	fmt.Println("   (Solutions Architect, Software Engineers, QA, Interns) dynamically.\n")
 
 	if autoRun {
-		// If TUI mode is requested, run orchestrator directly in current terminal (blocking)
-		if useTUITeam {
-			// Don't print anything here - go straight to TUI
-			// to avoid interfering with terminal setup
-			time.Sleep(100 * time.Millisecond) // Brief pause to let terminal settle
-
-			orch, err := orchestrator.NewOrchestrator(workspaceDir, false)
-			if err != nil {
-				return fmt.Errorf("failed to create orchestrator: %w", err)
-			}
-
-			return orch.RunTUI()
-		}
-
-		// Non-TUI mode: spawn in background tmux session
+		// Spawn orchestrator in tmux session
 		fmt.Println("🚀 Starting orchestration daemon...")
 
 		// Create tmux session for orchestrator
 		sessionName := fmt.Sprintf("wildwest-orchestrator-%d", time.Now().Unix())
 
-		// Build command: wildwest orchestrate --workspace <workspace>
-		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s", workspaceDir)
+		// Build command: wildwest orchestrate --workspace <workspace> --no-tui
+		// (runs orchestrator loop, not TUI)
+		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s --tui=false", workspaceDir)
 
 		// Start tmux session with orchestrator
 		tmuxCmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, orchestrateCmd)
@@ -157,19 +144,13 @@ func startTeam(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
-		fmt.Printf("✅ Orchestrator started in tmux session: %s\n", sessionName)
-		fmt.Printf("   Attach with: tmux attach -t %s\n\n", sessionName)
+		fmt.Printf("✅ Orchestrator started: tmux attach -t %s\n", sessionName)
 
-		// Give orchestrator time to initialize
-		time.Sleep(500 * time.Millisecond)
+		// Give orchestrator time to initialize and save state
+		time.Sleep(1 * time.Second)
 
-		fmt.Println("🎉 Team is running! The orchestrator will:")
-		fmt.Println("  1. Spawn the Engineering Manager")
-		fmt.Println("  2. Manager assesses task and requests needed resources")
-		fmt.Println("  3. Orchestrator spawns requested team members dynamically")
-		fmt.Println("  4. Manage the team lifecycle and terminate completed sessions")
-		fmt.Println()
-		fmt.Printf("📊 View status: wildwest team status --workspace %s\n", workspaceDir)
+		// Open TUI to monitor progress
+		return orchestrator.RunStaticTUIWithWorkspace(workspaceDir)
 	} else {
 		fmt.Println("⚠️  IMPORTANT: Start the orchestrator to spawn Claude instances:")
 		fmt.Printf("   wildwest orchestrate --workspace %s\n\n", workspaceDir)

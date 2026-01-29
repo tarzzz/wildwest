@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -12,6 +13,27 @@ var (
 	cfgFile string
 	verbose bool
 )
+
+// runDefaultCommand handles the case where wildwest is called with just a task string
+// Example: wildwest "Build a REST API"
+// This is equivalent to: wildwest team start "Build a REST API" --run --tui
+func runDefaultCommand(cmd *cobra.Command, args []string) error {
+	// If no args provided, show help
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+
+	// Join args as task description
+	task := strings.Join(args, " ")
+
+	// Set up team start parameters
+	workspaceDir = ".database"
+	autoRun = true
+	useTUITeam = true
+
+	// Call team start logic directly with the task
+	return startTeam(cmd, []string{task})
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "wildwest",
@@ -23,34 +45,27 @@ Each persona runs independently in tmux sessions and communicates via file-based
 
 QUICK START:
 
-  1. Create a team:
-     wildwest team start "Build a REST API for todo items"
+  1. Create a team and start orchestrator in one command:
+     wildwest "Build a REST API for todo items"
 
-  2. Start the orchestrator (runs in tmux, returns immediately):
-     wildwest orchestrate --workspace .database
+  2. Or use the full command:
+     wildwest team start "Build a REST API" --run --tui
 
-  3. View all sessions (including orchestrator):
+  3. View all sessions:
      tmux ls | grep claude
 
-  4. Attach to orchestrator to monitor:
-     tmux attach -t claude-orchestrator-*
+  4. Attach to persona sessions:
+     Press 'a' in TUI or use: wildwest attach <session-id>
 
-  5. Attach to persona sessions:
-     wildwest attach                 # Manager (default)
-     wildwest attach <session-id>    # Specific persona
-
-  6. Detach from any tmux session:
+  5. Detach from any tmux session:
      Press Ctrl+B then D
-
-  7. Clean up stopped sessions:
-     wildwest cleanup
 
 TEAM HIERARCHY:
 
-  Engineering Manager (Level 1)
-    └─> Solutions Architect (Level 2)
-          └─> Software Engineers (Level 3)
-                └─> Interns (Level 4)
+  Leader Agent (Level 1)
+    └─> Architecture Agent (Level 2)
+          └─> Coding Agents (Level 3)
+                └─> Support Agents (Level 4)
 
 HOW IT WORKS:
 
@@ -62,20 +77,19 @@ HOW IT WORKS:
 
 EXAMPLES:
 
-  # Create team with 2 engineers
-  wildwest team start "Build a web scraper" --engineers 2
+  # Quick start (recommended)
+  wildwest "Build a web scraper"
 
-  # Attach to specific session
-  wildwest attach engineering-manager-1234567890
+  # Full command with options
+  wildwest team start "Build a web scraper" --run --tui
 
-  # Filter sessions by type
-  wildwest attach --list --filter engineer
-
-  # View orchestrator status
-  tmux ls | grep claude
+  # Start orchestrator separately
+  wildwest orchestrate --workspace .database
 
 For more information: https://github.com/tarzzz/wildwest`,
 	Version: "0.1.0",
+	Args:  cobra.ArbitraryArgs,
+	RunE:  runDefaultCommand,
 }
 
 func Execute() error {

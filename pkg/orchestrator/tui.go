@@ -172,7 +172,7 @@ func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Attach to selected tmux session
 			if m.selectedIndex >= 0 && m.selectedIndex < len(m.components) {
 				comp := m.components[m.selectedIndex]
-				if comp.TmuxSpawned && comp.TmuxSession != "" && comp.ID != "orchestrator" {
+				if comp.TmuxSpawned && comp.TmuxSession != "" {
 					m.attachToSession = comp.TmuxSession
 					return m, tea.Quit
 				}
@@ -279,10 +279,37 @@ func (m *OrgChartModel) loadOrchestratorState() {
 		Status         string `json:"status"`
 		CurrentWork    string `json:"current_work"`
 		ActiveSessions int    `json:"active_sessions"`
+		TmuxSession    string `json:"tmux_session,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &orch); err != nil {
 		return
+	}
+
+	// Check if orchestrator tmux session is actually running
+	tmuxSpawned := false
+	tmuxSession := orch.TmuxSession
+	if tmuxSession != "" {
+		// Verify tmux session exists
+		cmd := exec.Command("tmux", "has-session", "-t", tmuxSession)
+		if cmd.Run() == nil {
+			tmuxSpawned = true
+		}
+	}
+
+	// If no tmux session in state, try to find it by pattern
+	if tmuxSession == "" {
+		cmd := exec.Command("bash", "-c", "tmux ls 2>/dev/null | grep -E 'wildwest-orchestrator-|claude-orchestrator-' | head -1 | cut -d: -f1")
+		if output, err := cmd.Output(); err == nil && len(output) > 0 {
+			tmuxSession = string(output[:len(output)-1]) // trim newline
+			tmuxSpawned = true
+		}
+	}
+
+	// Determine emoji based on spawn status
+	emoji := "⏸️"  // not spawned
+	if tmuxSpawned {
+		emoji = "🚀" // spawned
 	}
 
 	// Prepend orchestrator as first component
@@ -290,9 +317,12 @@ func (m *OrgChartModel) loadOrchestratorState() {
 		ID:            "orchestrator",
 		Name:          "Orchestrator",
 		Role:          "System",
+		Emoji:         emoji,
 		Description:   "Manages team spawning, monitoring, and coordination",
 		Status:        orch.Status,
 		StatusMessage: orch.CurrentWork,
+		TmuxSpawned:   tmuxSpawned,
+		TmuxSession:   tmuxSession,
 	}
 
 	m.components = append([]Component{orchestratorComp}, m.components...)
@@ -497,13 +527,10 @@ func (m OrgChartModel) renderList() string {
 		// Main item line with tmux spawn indicator
 		var line string
 		tmuxIndicator := ""
-		// Only show tmux indicator for actual sessions (not orchestrator)
-		if comp.ID != "orchestrator" {
-			if comp.TmuxSpawned {
-				tmuxIndicator = " 🖥️"  // Spawned
-			} else {
-				tmuxIndicator = " ⏳"  // Not spawned yet
-			}
+		if comp.TmuxSpawned {
+			tmuxIndicator = " 🖥️"  // Spawned
+		} else {
+			tmuxIndicator = " ⏳"  // Not spawned yet
 		}
 
 		if i == m.selectedIndex {
@@ -675,17 +702,18 @@ func (m OrgChartModel) renderDetails() string {
 	detailsBuilder.WriteString(fmt.Sprintf("Status:      %s %s\n", statusMarker, statusLabel))
 
 	// Add tmux information
-	if comp.ID != "orchestrator" {
-		if comp.TmuxSpawned {
-			detailsBuilder.WriteString(fmt.Sprintf("Tmux:        🖥️  Spawned\n"))
-			if comp.TmuxSession != "" {
-				detailsBuilder.WriteString(fmt.Sprintf("Session:     %s\n", comp.TmuxSession))
+	if comp.TmuxSpawned {
+		detailsBuilder.WriteString("Tmux:        🖥️  Spawned\n")
+		if comp.TmuxSession != "" {
+			detailsBuilder.WriteString(fmt.Sprintf("Session:     %s\n", comp.TmuxSession))
+			// Only show attach.sh for actual agent sessions, not orchestrator
+			if comp.ID != "orchestrator" {
 				detailsBuilder.WriteString(fmt.Sprintf("\nAttach:      ./%s/attach.sh\n", comp.ID))
-				detailsBuilder.WriteString(fmt.Sprintf("             tmux attach -t %s\n", comp.TmuxSession))
 			}
-		} else {
-			detailsBuilder.WriteString(fmt.Sprintf("Tmux:        ⏳ Not spawned yet\n"))
+			detailsBuilder.WriteString(fmt.Sprintf("             tmux attach -t %s\n", comp.TmuxSession))
 		}
+	} else {
+		detailsBuilder.WriteString("Tmux:        ⏳ Not spawned yet\n")
 	}
 
 	detailsBuilder.WriteString(fmt.Sprintf("\nCurrent Activity:\n%s\n", comp.StatusMessage))

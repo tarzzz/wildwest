@@ -26,6 +26,7 @@ type Orchestrator struct {
 	totalSpawned    int
 	completedCount  int
 	failedCount     int
+	tmuxSession     string // The tmux session this orchestrator is running in
 }
 
 // OrchestratorState represents the orchestrator's state in JSON
@@ -38,6 +39,7 @@ type OrchestratorState struct {
 	ActiveSessions      int       `json:"active_sessions"`
 	CompletedSessions   int       `json:"completed_sessions"`
 	FailedSessions      int       `json:"failed_sessions"`
+	TmuxSession         string    `json:"tmux_session,omitempty"`
 }
 
 // log prints a message unless in TUI mode
@@ -74,6 +76,16 @@ func NewOrchestrator(workspacePath string, verbose bool) (*Orchestrator, error) 
 		pollInterval:   5 * time.Second,
 		verbose:        verbose,
 		startTime:      time.Now(),
+	}
+
+	// Detect tmux session name if running inside tmux
+	if tmuxEnv := os.Getenv("TMUX"); tmuxEnv != "" {
+		// TMUX env format: /tmp/tmux-501/default,12345,0
+		// Extract session name using tmux command
+		cmd := exec.Command("tmux", "display-message", "-p", "#S")
+		if output, err := cmd.Output(); err == nil && len(output) > 0 {
+			orch.tmuxSession = strings.TrimSpace(string(output))
+		}
 	}
 
 	// Create orchestrator directory and initialize state
@@ -753,6 +765,7 @@ func (o *Orchestrator) saveState() error {
 		ActiveSessions:      len(o.activeSessions),
 		CompletedSessions:   o.completedCount,
 		FailedSessions:      o.failedCount,
+		TmuxSession:         o.tmuxSession,
 	}
 
 	stateFile := filepath.Join(o.workspacePath, "orchestrator", "state.json")
