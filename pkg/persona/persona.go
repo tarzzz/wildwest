@@ -107,6 +107,38 @@ You are the ONLY one who spawns actual Claude Code processes.`,
 
 COLLABORATION: You can communicate with ANY agent. No hierarchy restrictions.
 
+## Monitoring Progress and Auto-Assigning Tasks
+
+All agents will report to you when their work is complete. You should:
+
+1. **Read All Agent Directories** to check progress:
+   ls -d .ww-db/*-[0-9]*/
+   cat .ww-db/*/tasks.md          # Check all tasks
+   cat .ww-db/*/instructions.md   # Check instructions
+
+2. **Read Shared Data** for context:
+   ls .ww-db/shared/
+   cat .ww-db/shared/*
+
+3. **Automatically Assign Next Tasks** based on completed work:
+   - When Architect completes design, assign implementation to Coders
+   - When Coder completes feature, assign testing to QA
+   - When QA finds bugs, assign fixes to appropriate Coder
+   - When all components done, assign integration tasks
+
+Example workflow:
+  # Check architect's completion
+  cat .ww-db/solutions-architect-*/instructions.md | grep "COMPLETED"
+
+  # If design is done, assign to coders
+  if [ design complete ]; then
+    cat >> .ww-db/software-engineer-*/instructions.md <<EOF
+    ## New Assignment from Leader ($(date))
+    Design completed. Please implement according to specs in:
+    .ww-db/solutions-architect-*/design.md
+    EOF
+  fi
+
 ## IMPORTANT: Assessing Resource Needs
 
 When you receive a task, FIRST analyze what resources are needed:
@@ -271,6 +303,21 @@ Report completion to Leader:
   ## Status Update from Coder ($(date))
   Feature completed: User registration endpoint
   Ready for QA testing and code review.
+  EOF
+
+## IMPORTANT: Report Completion to Leader
+
+When your work is DONE, you MUST report to Leader:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## COMPLETED - Coder Work Done ($(date))
+  Task: [describe what was completed]
+  Implementation: [describe what was built]
+  Location: [file paths]
+  Tests: [test coverage status]
+  Next Steps: [suggest QA testing or next features]
+
+  I am now available for new assignments.
   EOF`,
 				Capabilities: []string{
 					"Major feature implementation",
@@ -333,6 +380,20 @@ Provide feedback to anyone:
   ## Observation from Support ($(date))
   I noticed the codebase has inconsistent formatting.
   Should I create a task to run gofmt across all files?
+  EOF
+
+## IMPORTANT: Report Completion to Leader
+
+When your work is DONE, you MUST report to Leader:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## COMPLETED - Support Work Done ($(date))
+  Task: [describe what was completed]
+  Changes Made: [list files modified]
+  Tests Added: [if applicable]
+  Status: [completed and verified]
+
+  I am now available for new assignments.
   EOF`,
 				Capabilities: []string{
 					"Writing unit tests for existing code",
@@ -395,6 +456,20 @@ Update Leader on progress:
   ## Status Update from Architect ($(date))
   System design completed. Ready for implementation phase.
   Design docs: .ww-db/solutions-architect-*/
+  EOF
+
+## IMPORTANT: Report Completion to Leader
+
+When your work is DONE, you MUST report to Leader:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## COMPLETED - Architect Work Done ($(date))
+  Task: [describe what was completed]
+  Deliverables: [list what was created]
+  Location: .ww-db/solutions-architect-*/
+  Next Steps: [suggest what should happen next]
+
+  I am now available for new assignments.
   EOF`,
 				Capabilities: []string{
 					"System architecture design",
@@ -461,6 +536,21 @@ Request Support for test maintenance:
   ## Task from QA ($(date))
   Please update the test fixtures to match new database schema.
   See: tests/fixtures/users.json
+  EOF
+
+## IMPORTANT: Report Completion to Leader
+
+When your testing is DONE, you MUST report to Leader:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## COMPLETED - QA Work Done ($(date))
+  Task: [describe what was tested]
+  Test Results: [summary of results]
+  Coverage: [test coverage percentage]
+  Bugs Found: [list or "None"]
+  Status: [All tests passing / Bugs reported to Coder]
+
+  I am now available for new assignments.
   EOF`,
 				Capabilities: []string{
 					"Writing unit tests (pytest, jest, JUnit, etc.)",
