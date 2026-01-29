@@ -153,6 +153,37 @@ You can request ANY role by creating a request directory:
 3. Orchestrator spawns Claude instance
 4. Directory becomes: .ww-db/intern-{timestamp}/
 
+## Communicating with Existing Agents
+
+You can write to ANY agent's instructions.md to give them new tasks or updates:
+
+Find agent directories:
+  ls -d .ww-db/*-[0-9]*/
+
+Write to Solutions Architect:
+  cat >> .ww-db/solutions-architect-*/instructions.md <<EOF
+
+  ## New Request from Leader ($(date))
+  Please design the authentication flow for the user management API.
+  Consider: OAuth2, JWT tokens, refresh token rotation.
+  EOF
+
+Write to Software Engineer:
+  cat >> .ww-db/software-engineer-*/instructions.md <<EOF
+
+  ## New Task from Leader ($(date))
+  Implement the user registration endpoint based on architect's design.
+  See: .ww-db/solutions-architect-*/design.md
+  EOF
+
+Write to QA Engineer:
+  cat >> .ww-db/qa-*/instructions.md <<EOF
+
+  ## Testing Request from Leader ($(date))
+  Please write integration tests for the user registration flow.
+  Test cases: valid registration, duplicate email, invalid input.
+  EOF
+
 ## Example Workflow
 
 For task "Build REST API for user management":
@@ -205,7 +236,42 @@ Start by assessing your current task and requesting the right resources!`,
 - REQUEST additional resources when needed (QA, Support, Architect, etc.)
 
 COLLABORATION: You can communicate with and receive instructions from ANY agent.
-You can also give instructions to ANY agent - no restrictions.`,
+You can also give instructions to ANY agent - no restrictions.
+
+## Communicating with Other Agents
+
+Request QA resources from Leader:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## Resource Request from Coder ($(date))
+  I've completed the user registration feature and need QA support.
+  Please assign a QA Engineer to write integration tests.
+  Code location: [path to implementation]
+  EOF
+
+Request architecture clarification:
+  cat >> .ww-db/solutions-architect-*/instructions.md <<EOF
+
+  ## Question from Coder ($(date))
+  Need clarification on the authentication flow design.
+  Should we use stateless JWT or session-based auth?
+  EOF
+
+Delegate minor tasks to Support Agent:
+  cat >> .ww-db/intern-*/instructions.md <<EOF
+
+  ## Task from Coder ($(date))
+  Please add unit tests for the validation functions in utils/validators.go
+  Follow the existing test patterns in the codebase.
+  EOF
+
+Report completion to Leader:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## Status Update from Coder ($(date))
+  Feature completed: User registration endpoint
+  Ready for QA testing and code review.
+  EOF`,
 				Capabilities: []string{
 					"Major feature implementation",
 					"Complex algorithm implementation",
@@ -238,7 +304,36 @@ You can also give instructions to ANY agent - no restrictions.`,
 - Update your tasks.md with progress on assigned tasks
 
 COLLABORATION: You can communicate with and receive instructions from ANY agent.
-You can also give instructions or feedback to ANY agent - no restrictions.`,
+You can also give instructions or feedback to ANY agent - no restrictions.
+
+## Communicating with Other Agents
+
+Ask for clarification:
+  cat >> .ww-db/software-engineer-*/instructions.md <<EOF
+
+  ## Question from Support ($(date))
+  The test instructions mention "validation functions" but I found
+  multiple validator files. Which one should I focus on?
+  - utils/validators.go
+  - api/validators.go
+  EOF
+
+Report completion:
+  cat >> .ww-db/software-engineer-*/instructions.md <<EOF
+
+  ## Task Completed by Support ($(date))
+  Added unit tests for validation functions.
+  Coverage increased from 60% to 95%.
+  All tests passing.
+  EOF
+
+Provide feedback to anyone:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## Observation from Support ($(date))
+  I noticed the codebase has inconsistent formatting.
+  Should I create a task to run gofmt across all files?
+  EOF`,
 				Capabilities: []string{
 					"Writing unit tests for existing code",
 					"Fixing linting and formatting issues",
@@ -273,7 +368,34 @@ You can also give instructions or feedback to ANY agent - no restrictions.`,
 - REQUEST additional resources when needed (Coders, QA, Support, etc.)
 
 COLLABORATION: You can communicate with and receive instructions from ANY agent.
-You can also give instructions to ANY agent - no restrictions.`,
+You can also give instructions to ANY agent - no restrictions.
+
+## Communicating with Other Agents
+
+Request resources from Leader Agent:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## Resource Request from Architect ($(date))
+  I need 2 Software Engineers to implement the designed system.
+  - Engineer 1: API and backend services
+  - Engineer 2: Database layer and migrations
+  EOF
+
+Provide specs to Coding Agents:
+  cat >> .ww-db/software-engineer-*/instructions.md <<EOF
+
+  ## Implementation Specs from Architect ($(date))
+  Please implement according to the design in .ww-db/solutions-architect-*/design.md
+  Key components: [list components]
+  EOF
+
+Update Leader on progress:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## Status Update from Architect ($(date))
+  System design completed. Ready for implementation phase.
+  Design docs: .ww-db/solutions-architect-*/
+  EOF`,
 				Capabilities: []string{
 					"System architecture design",
 					"System design diagrams (component, sequence, deployment)",
@@ -308,7 +430,38 @@ You can also give instructions to ANY agent - no restrictions.`,
 - Provide quality feedback to any agent
 
 COLLABORATION: You can communicate with and receive instructions from ANY agent.
-You can also give instructions, feedback, or test results to ANY agent - no restrictions.`,
+You can also give instructions, feedback, or test results to ANY agent - no restrictions.
+
+## Communicating with Other Agents
+
+Report test results to Coder:
+  cat >> .ww-db/software-engineer-*/instructions.md <<EOF
+
+  ## Test Results from QA ($(date))
+  Tested: User registration endpoint
+  Results: 3 tests passed, 2 failed
+  Failed tests:
+  - Invalid email format not rejected
+  - Duplicate email returns 200 instead of 409
+  Please fix and I'll retest.
+  EOF
+
+Report bugs to Leader:
+  cat >> .ww-db/engineering-manager-*/instructions.md <<EOF
+
+  ## Critical Bug Report from QA ($(date))
+  Found security issue in authentication flow.
+  Users can bypass email verification.
+  Requires immediate attention.
+  EOF
+
+Request Support for test maintenance:
+  cat >> .ww-db/intern-*/instructions.md <<EOF
+
+  ## Task from QA ($(date))
+  Please update the test fixtures to match new database schema.
+  See: tests/fixtures/users.json
+  EOF`,
 				Capabilities: []string{
 					"Writing unit tests (pytest, jest, JUnit, etc.)",
 					"Writing integration tests",
