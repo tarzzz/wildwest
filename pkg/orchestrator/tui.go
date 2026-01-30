@@ -199,8 +199,8 @@ func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "K":
-			// Kill all sessions (requires confirmation)
-			return m, m.killAllSessions()
+			// Kill session and delete database files
+			return m, m.killSession()
 		}
 
 	case tea.WindowSizeMsg:
@@ -520,7 +520,7 @@ func (m OrgChartModel) View() string {
 
 	// Footer
 	b.WriteString("\n")
-	instructions := "↑↓/jk: navigate | d: details | a: attach | K: kill all | esc/b: back | q: quit"
+	instructions := "↑↓/jk: navigate | d: details | a: attach | K: kill session | esc/b: back | q: quit"
 	b.WriteString(footerStyle.Render(instructions))
 
 	return b.String()
@@ -618,8 +618,8 @@ func (m OrgChartModel) getStatusMarker(status string) string {
 	}
 }
 
-// killAllSessions kills all spawned tmux sessions
-func (m OrgChartModel) killAllSessions() tea.Cmd {
+// killSession kills all spawned tmux sessions and deletes the session directory
+func (m OrgChartModel) killSession() tea.Cmd {
 	return func() tea.Msg {
 		// Read orchestrator state to get list of spawned sessions
 		stateFile := filepath.Join(m.workspacePath, "orchestrator", "state.json")
@@ -649,6 +649,11 @@ func (m OrgChartModel) killAllSessions() tea.Cmd {
 		if state.TmuxSession != "" {
 			cmd := exec.Command("tmux", "kill-session", "-t", state.TmuxSession)
 			cmd.Run()
+		}
+
+		// Delete the entire session directory
+		if m.workspacePath != "" && m.workspacePath != "." && m.workspacePath != "/" {
+			os.RemoveAll(m.workspacePath)
 		}
 
 		return tea.Quit()
