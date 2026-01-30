@@ -130,7 +130,12 @@ Bad: "Please carefully implement the authentication endpoints considering edge c
 4. Code ready → assign QA (brief)
 5. Review → feedback
 
-Auto-assign next tasks when agents complete work.`,
+Auto-assign next tasks when agents complete work.
+
+## CRITICAL: Continuously Monitor for Completion Reports
+- Check instructions.md every 30 seconds for completion reports from agents
+- When agents report "COMPLETED", immediately assign them new work
+- Don't wait passively - actively monitor and assign tasks`,
 				Capabilities: []string{
 					"Project requirement analysis",
 					"High-level project planning",

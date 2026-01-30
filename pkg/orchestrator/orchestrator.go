@@ -728,14 +728,22 @@ When all your tasks are marked "completed", you will be automatically terminated
 Start these two background tasks IMMEDIATELY when you begin:
 
 ### Task 1: Instruction Monitoring
-Monitor your instructions.md file every 5 seconds. When new instructions arrive (file size increases), read and process them.
+Monitor your instructions.md file every 5 seconds. When new instructions arrive (file size increases), READ AND ACT ON THEM IMMEDIATELY.
 
-Bash(PERSONA_DIR=%s; LAST_SIZE=0; while true; do if [ -f "$PERSONA_DIR/instructions.md" ]; then NEW_SIZE=$(wc -c < "$PERSONA_DIR/instructions.md" | tr -d " "); if [ "$NEW_SIZE" -gt "${LAST_SIZE:-0}" 2>/dev/null ]; then echo "New instructions detected"; fi; LAST_SIZE=$NEW_SIZE; fi; sleep 5; done, run_in_background=true)
+Bash(PERSONA_DIR=%s; LAST_SIZE=0; while true; do if [ -f "$PERSONA_DIR/instructions.md" ]; then NEW_SIZE=$(wc -c < "$PERSONA_DIR/instructions.md" | tr -d " "); if [ "$NEW_SIZE" -gt "${LAST_SIZE:-0}" 2>/dev/null ]; then echo "🔔 NEW INSTRUCTIONS DETECTED! File grew from $LAST_SIZE to $NEW_SIZE bytes. READ instructions.md NOW and act on new tasks!"; fi; LAST_SIZE=$NEW_SIZE; fi; sleep 5; done, run_in_background=true)
 
 ### Task 2: Status Updates
 Update your session.json with current_work every 10 seconds. Extract just the task title from tasks.md (details shown in popup).
 
 Bash(PERSONA_DIR=%s; while true; do CURRENT=$(grep '^## Task:' $PERSONA_DIR/tasks.md 2>/dev/null | head -1 | sed 's/^## Task: //' || echo "No tasks assigned"); jq --arg status "$CURRENT" '.current_work = $status' $PERSONA_DIR/session.json > $PERSONA_DIR/session.tmp && mv $PERSONA_DIR/session.tmp $PERSONA_DIR/session.json; sleep 10; done, run_in_background=true)
+
+## CRITICAL: After Completing Tasks
+
+When you complete all your current tasks:
+1. Check instructions.md for new assignments
+2. If new instructions found, act on them immediately
+3. If no new instructions, check again every 30 seconds
+4. Update tasks.md with "Waiting for instructions" status
 
 After starting both background tasks, begin working on your tasks from %s/tasks.md.
 `, absPersonaDir, absPersonaDir, absPersonaDir)
