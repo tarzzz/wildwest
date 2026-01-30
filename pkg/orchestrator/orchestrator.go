@@ -501,7 +501,7 @@ func (o *Orchestrator) monitorRunningSessions() error {
 	return nil
 }
 
-// createWrapperScript creates a shell script that runs Claude interactively with background monitoring
+// createWrapperScript creates a shell script that automatically polls and invokes Claude
 func (o *Orchestrator) createWrapperScript(sessionID, sessionDir string) string {
 	// Get absolute path
 	absSessionDir, _ := filepath.Abs(sessionDir)
@@ -513,6 +513,7 @@ cd "$SESSION_DIR"
 
 echo "🤖 Starting Claude worker for session: %s"
 echo "📂 Working directory: $SESSION_DIR"
+echo "⏰ Checking instructions every 30 seconds"
 echo ""
 
 # Function to get file size (cross-platform)
@@ -524,73 +525,47 @@ get_file_size() {
     fi
 }
 
-# Start background monitoring script
-(
-    LAST_INSTRUCTIONS_SIZE=$(get_file_size "instructions.md")
-    LAST_TASKS_SIZE=$(get_file_size "tasks.md")
+LAST_INSTRUCTIONS_SIZE=$(get_file_size "instructions.md")
+ITERATION=0
 
-    while true; do
-        sleep 5
-
-        # Check for manual ping file
-        if [ -f ".ping" ]; then
-            rm .ping
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🔔 PING! Manual check requested."
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-        fi
-
-        # Check if instructions.md has new content
-        if [ -f "instructions.md" ]; then
-            CURRENT_SIZE=$(get_file_size "instructions.md")
-            if [ "$CURRENT_SIZE" -gt "$LAST_INSTRUCTIONS_SIZE" ]; then
-                echo ""
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "📨 NEW INSTRUCTIONS DETECTED!"
-                echo "   Previous size: $LAST_INSTRUCTIONS_SIZE bytes"
-                echo "   Current size:  $CURRENT_SIZE bytes"
-                echo ""
-                echo "   👉 Ask me to check instructions.md for new tasks!"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo ""
-                LAST_INSTRUCTIONS_SIZE=$CURRENT_SIZE
-            fi
-        fi
-
-        # Check if tasks.md was updated
-        if [ -f "tasks.md" ]; then
-            CURRENT_TASKS_SIZE=$(get_file_size "tasks.md")
-            if [ "$CURRENT_TASKS_SIZE" -gt "$LAST_TASKS_SIZE" ]; then
-                echo ""
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "📋 TASKS FILE UPDATED!"
-                echo "   👉 Check tasks.md for updates!"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo ""
-                LAST_TASKS_SIZE=$CURRENT_TASKS_SIZE
-            fi
-        fi
-    done
-) &
-
-# Save background process PID
-MONITOR_PID=$!
-echo "📡 Background monitor started (PID: $MONITOR_PID)"
-echo "   Checking for new instructions every 5 seconds"
-echo ""
-
-# Cleanup function to kill background monitor on exit
-cleanup() {
-    kill $MONITOR_PID 2>/dev/null || true
-}
-trap cleanup EXIT
-
-# Start Claude in interactive mode with initial instructions
-claude --dangerously-skip-permissions \
+# Initial run
+echo "🎬 Initial run - reading tasks"
+claude --print --dangerously-skip-permissions \
     --append-system-prompt "$(cat persona-instructions.md)" \
-    "Read your tasks.md file and start working. You're running in INTERACTIVE mode - a background script monitors for new instructions and will alert you. When you see a notification about new instructions, read instructions.md and act on them."
+    "Read your tasks.md file. If you have tasks, start working on them. If waiting for instructions, check instructions.md file."
+
+# Main monitoring loop
+while true; do
+    sleep 30
+    ITERATION=$((ITERATION + 1))
+
+    # Check if instructions.md has new content
+    if [ -f "instructions.md" ]; then
+        CURRENT_SIZE=$(get_file_size "instructions.md")
+        if [ "$CURRENT_SIZE" -gt "$LAST_INSTRUCTIONS_SIZE" ]; then
+            echo ""
+            echo "📨 [Iteration $ITERATION] New instructions detected! Size: $LAST_INSTRUCTIONS_SIZE → $CURRENT_SIZE bytes"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # Run Claude to process new instructions
+            claude --print --dangerously-skip-permissions \
+                --append-system-prompt "$(cat persona-instructions.md)" \
+                "NEW INSTRUCTIONS RECEIVED! Read instructions.md and act on them immediately. Update your tasks.md file accordingly."
+
+            LAST_INSTRUCTIONS_SIZE=$CURRENT_SIZE
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        fi
+    fi
+
+    # Periodic check every 2 minutes (4 iterations) even if no changes
+    if [ $((ITERATION %% 4)) -eq 0 ]; then
+        echo ""
+        echo "💭 [Iteration $ITERATION] Periodic check-in (2 minutes elapsed)"
+        claude --print --dangerously-skip-permissions \
+            --append-system-prompt "$(cat persona-instructions.md)" \
+            "Status check: Review tasks.md and instructions.md. If you have work, continue. If idle and waiting, check instructions.md for new assignments. Report your status briefly."
+    fi
+done
 `, absSessionDir, sessionID)
 	return script
 }
