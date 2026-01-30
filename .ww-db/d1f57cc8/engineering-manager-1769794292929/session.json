@@ -1,0 +1,14 @@
+{
+  "id": "engineering-manager-1769794292929",
+  "parent_session_id": "d1f57cc8",
+  "persona_type": "engineering-manager",
+  "persona_name": "sartre",
+  "start_time": "2026-01-30T12:31:32.929447-05:00",
+  "status": "active",
+  "workspace_id": "ws-1769794292",
+  "pid": 80700,
+  "tmux_session": "claude-engineering-manager-1769794292929",
+  "tmux_spawned": true,
+  "tmux_attach_cmd": "tmux attach -t claude-engineering-manager-1769794292929",
+  "current_work": "Test session 1"
+}

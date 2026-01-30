@@ -1,0 +1,14 @@
+{
+  "id": "orchestrator",
+  "status": "active",
+  "start_time": "2026-01-30T12:31:43.756493-05:00",
+  "current_work": "Monitoring 1 session",
+  "total_sessions_spawned": 1,
+  "active_sessions": 1,
+  "completed_sessions": 0,
+  "failed_sessions": 0,
+  "tmux_session": "test-orch-1",
+  "spawned_sessions": [
+    "claude-engineering-manager-1769794292929"
+  ]
+}

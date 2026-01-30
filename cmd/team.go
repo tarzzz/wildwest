@@ -161,6 +161,16 @@ func startTeam(cmd *cobra.Command, args []string) error {
 		// Create tmux session for orchestrator
 		sessionName := fmt.Sprintf("wildwest-orchestrator-%d", time.Now().Unix())
 
+		// Update initial state with tmux session name so it can be killed later
+		stateFile := filepath.Join(orchestratorDir, "state.json")
+		var currentState map[string]interface{}
+		if stateData, err := os.ReadFile(stateFile); err == nil {
+			json.Unmarshal(stateData, &currentState)
+			currentState["tmux_session"] = sessionName
+			updatedData, _ := json.MarshalIndent(currentState, "", "  ")
+			os.WriteFile(stateFile, updatedData, 0644)
+		}
+
 		// Build command: wildwest orchestrate --workspace <workspace> --no-tui
 		// (runs orchestrator loop, not TUI)
 		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s --tui=false", sessionPath)

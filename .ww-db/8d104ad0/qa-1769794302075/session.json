@@ -1,0 +1,14 @@
+{
+  "id": "qa-1769794302075",
+  "parent_session_id": "8d104ad0",
+  "persona_type": "qa",
+  "persona_name": "deming",
+  "start_time": "2026-01-30T12:31:42.075967-05:00",
+  "status": "active",
+  "workspace_id": "main",
+  "pid": 73241,
+  "tmux_session": "claude-qa-1769794302075",
+  "tmux_spawned": true,
+  "tmux_attach_cmd": "tmux attach -t claude-qa-1769794302075",
+  "current_work": "Test Orchestrator System"
+}
