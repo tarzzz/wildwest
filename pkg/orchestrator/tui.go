@@ -164,6 +164,15 @@ func tickCmd() tea.Cmd {
 
 func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case PingResultMsg:
+		// Handle ping result
+		if msg.success {
+			m.addLog(fmt.Sprintf("✅ Pinged agent: %s", msg.agentID))
+		} else {
+			m.addLog(fmt.Sprintf("❌ Failed to ping agent %s: %v", msg.agentID, msg.err))
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -627,13 +636,38 @@ func (m OrgChartModel) getStatusMarker(status string) string {
 	}
 }
 
-// pingAgent sends a ping signal to wake up an agent and check for new instructions
+// PingResultMsg is sent after pinging an agent
+type PingResultMsg struct {
+	agentID string
+	success bool
+	err     error
+}
+
+// pingAgent sends a prompt to the agent's tmux session asking it to check for new instructions
 func (m OrgChartModel) pingAgent(agentID string) tea.Cmd {
 	return func() tea.Msg {
-		// Create .ping file in the agent's directory
-		pingFile := filepath.Join(m.workspacePath, agentID, ".ping")
-		os.WriteFile(pingFile, []byte("ping"), 0644)
-		return nil
+		// Find the tmux session for this agent
+		var tmuxSession string
+		for _, sess := range m.activeSessions {
+			if sess.ID == agentID {
+				tmuxSession = sess.TmuxSession
+				break
+			}
+		}
+
+		if tmuxSession == "" {
+			return PingResultMsg{agentID: agentID, success: false, err: fmt.Errorf("no tmux session found")}
+		}
+
+		// Send keystrokes to Claude asking it to check instructions
+		cmd := exec.Command("tmux", "send-keys", "-t", tmuxSession,
+			"Check instructions.md and tasks.md for new assignments. If found, start working on them immediately.", "C-m")
+		err := cmd.Run()
+
+		if err != nil {
+			return PingResultMsg{agentID: agentID, success: false, err: err}
+		}
+		return PingResultMsg{agentID: agentID, success: true, err: nil}
 	}
 }
 
