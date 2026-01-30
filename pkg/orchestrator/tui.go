@@ -198,6 +198,15 @@ func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+		case "p":
+			// Ping selected agent to check for new instructions
+			if m.selectedIndex >= 0 && m.selectedIndex < len(m.components) {
+				comp := m.components[m.selectedIndex]
+				if comp.ID != "orchestrator" {
+					return m, m.pingAgent(comp.ID)
+				}
+			}
+
 		case "K":
 			// Kill session and delete database files
 			return m, m.killSession()
@@ -520,7 +529,7 @@ func (m OrgChartModel) View() string {
 
 	// Footer
 	b.WriteString("\n")
-	instructions := "↑↓/jk: navigate | d: details | a: attach | K: kill session | esc/b: back | q: quit"
+	instructions := "↑↓/jk: navigate | d: details | a: attach | p: ping agent | K: kill session | esc/b: back | q: quit"
 	b.WriteString(footerStyle.Render(instructions))
 
 	return b.String()
@@ -615,6 +624,16 @@ func (m OrgChartModel) getStatusMarker(status string) string {
 		return "⏸️"  // Paused/unavailable
 	default:
 		return "✅"
+	}
+}
+
+// pingAgent sends a ping signal to wake up an agent and check for new instructions
+func (m OrgChartModel) pingAgent(agentID string) tea.Cmd {
+	return func() tea.Msg {
+		// Create .ping file in the agent's directory
+		pingFile := filepath.Join(m.workspacePath, agentID, ".ping")
+		os.WriteFile(pingFile, []byte("ping"), 0644)
+		return nil
 	}
 }
 

@@ -265,6 +265,11 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 		return nil
 	}
 
+	// Mark request directory as active immediately to prevent duplicate spawns
+	// This is critical because for request directories, a new session ID will be generated
+	// and we need to track BOTH the request directory name AND the new session ID
+	o.activeSessions[dirName] = true
+
 	var sess *session.Session
 	var err error
 
@@ -326,19 +331,15 @@ func (o *Orchestrator) handleSpawnRequest(dirName string) error {
 	absWorkspace, _ := filepath.Abs(o.workspacePath)
 	absSessionDir := filepath.Join(absWorkspace, sess.ID)
 
-	// Get claude binary path (respects CLAUDE_BIN env var)
-	claudeBin := os.Getenv("CLAUDE_BIN")
-	if claudeBin == "" {
-		claudeBin = "claude"
+	// Create wrapper script that keeps Claude alive and monitors for new instructions
+	wrapperScript := o.createWrapperScript(sess.ID, absSessionDir)
+	wrapperPath := filepath.Join(absSessionDir, "worker.sh")
+	if err := os.WriteFile(wrapperPath, []byte(wrapperScript), 0755); err != nil {
+		return fmt.Errorf("failed to create wrapper script: %w", err)
 	}
 
-	// Create the initial Claude command
-	// The persona-instructions.md file contains background task instructions
-	claudeCmd := fmt.Sprintf("%s --dangerously-skip-permissions --append-system-prompt \"$(cat %s/persona-instructions.md)\" \"Start both background tasks from your instructions, then begin working on your tasks.\"",
-		claudeBin, absSessionDir)
-
-	// Create tmux session and run Claude from current directory
-	cmd := exec.Command("tmux", "new-session", "-d", "-s", tmuxSessionName, "bash", "-c", claudeCmd)
+	// Create tmux session and run the wrapper script
+	cmd := exec.Command("tmux", "new-session", "-d", "-s", tmuxSessionName, "bash", wrapperPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to start tmux session: %w (output: %s)", err, string(output))
@@ -537,6 +538,18 @@ claude --print --dangerously-skip-permissions \
 while true; do
     ITERATION=$((ITERATION + 1))
 
+    # Check for manual ping file
+    if [ -f ".ping" ]; then
+        echo ""
+        echo "🔔 [Iteration $ITERATION] Manual ping received!"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        rm .ping
+        claude --print --dangerously-skip-permissions \
+            --append-system-prompt "$(cat persona-instructions.md)" \
+            "Manual check-in requested. Review your instructions.md and tasks.md. If you have new work, start it. If waiting, report status."
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    fi
+
     # Check if instructions.md has new content
     if [ -f "instructions.md" ]; then
         CURRENT_SIZE=$(get_file_size "instructions.md")
@@ -649,7 +662,7 @@ Read ~/.zshrc NOW to understand your environment.
 - Write your deliverables to the current directory (project root)
 - Your persona directory (%s/) is only for instructions/tasks tracking
 
-`, p.Instructions, sess.ID, absPersonaDir, sess.PersonaName, absPersonaDir,
+`, sess.ID, absPersonaDir, sess.PersonaName, absPersonaDir,
 	absPersonaDir, absPersonaDir, absPersonaDir, absPersonaDir,
 	absPersonaDir, absPersonaDir)
 
