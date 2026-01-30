@@ -591,8 +591,18 @@ func (o *Orchestrator) generateInstructions(p *persona.Persona, sess *session.Se
 	absWorkspace, _ := filepath.Abs(o.workspacePath)
 	absPersonaDir := filepath.Join(absWorkspace, sess.ID)
 
-	instructions := fmt.Sprintf(`%s
+	// Read CLAUDE.md if it exists for project-specific instructions
+	claudeMdPath := filepath.Join(o.workspacePath, "..", "CLAUDE.md")
+	claudeMdContent := ""
+	if data, err := os.ReadFile(claudeMdPath); err == nil {
+		claudeMdContent = fmt.Sprintf(`
+## Project Guidelines (from CLAUDE.md)
+%s
 
+`, string(data))
+	}
+
+	instructions := p.Instructions + "\n\n" + claudeMdContent + fmt.Sprintf(`
 ## Your Session Information
 Session ID: %s
 Your Persona Directory: %s/
