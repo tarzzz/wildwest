@@ -111,6 +111,18 @@ var (
 			Border(lipgloss.NormalBorder(), true, false, false, false).
 			BorderForeground(lipgloss.Color("240")).
 			MarginTop(1)
+
+	liveOutputStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Foreground(lipgloss.Color("252")).
+			Padding(1).
+			MarginTop(1).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("238"))
+
+	liveOutputHeaderStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("86")).
+				Bold(true)
 )
 
 // NewOrgChartModel creates a new static org chart TUI
@@ -796,8 +808,12 @@ func (m OrgChartModel) renderDetails() string {
 	if comp.TmuxSpawned && comp.TmuxSession != "" {
 		liveOutput := m.captureTmuxOutput(comp.TmuxSession, 10)
 		if liveOutput != "" {
-			detailsBuilder.WriteString("\n\n━━━ Live Output (last 10 lines) ━━━\n")
-			detailsBuilder.WriteString(liveOutput)
+			var liveBuilder strings.Builder
+			liveBuilder.WriteString(liveOutputHeaderStyle.Render("Live Output (last 10 lines)"))
+			liveBuilder.WriteString("\n\n")
+			liveBuilder.WriteString(liveOutput)
+			detailsBuilder.WriteString("\n\n")
+			detailsBuilder.WriteString(liveOutputStyle.Render(liveBuilder.String()))
 		}
 	}
 
