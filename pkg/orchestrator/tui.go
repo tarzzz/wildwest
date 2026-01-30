@@ -47,6 +47,7 @@ type OrgChartModel struct {
 	initialized      bool // Track if we've done initial load
 	attachToSession  string // Tmux session to attach to on exit
 	version          string // Version info for display
+	goBack           bool   // Signal to return to session selector
 }
 
 // Styles
@@ -165,7 +166,12 @@ func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c", "esc":
+		case "q", "ctrl+c":
+			return m, tea.Quit
+
+		case "esc", "b":
+			// Go back to session selector
+			m.goBack = true
 			return m, tea.Quit
 
 		case "up", "k":
@@ -514,7 +520,7 @@ func (m OrgChartModel) View() string {
 
 	// Footer
 	b.WriteString("\n")
-	instructions := "↑↓/jk: navigate | d: details | a: attach | K: kill all | q: quit"
+	instructions := "↑↓/jk: navigate | d: details | a: attach | K: kill all | esc/b: back | q: quit"
 	b.WriteString(footerStyle.Render(instructions))
 
 	return b.String()

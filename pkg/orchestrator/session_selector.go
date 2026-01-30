@@ -2,8 +2,9 @@ package orchestrator
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -133,23 +134,90 @@ func (m SessionSelectorModel) View() string {
 
 // RunSessionSelector shows a TUI for selecting a session
 func RunSessionSelector(baseWorkspace, version string) error {
-	m := initialSessionSelector(baseWorkspace, version)
+	for {
+		m := initialSessionSelector(baseWorkspace, version)
 
-	p := tea.NewProgram(m)
-	finalModel, err := p.Run()
-	if err != nil {
-		return err
-	}
-
-	// If user selected a session, launch the org chart TUI
-	if finalM, ok := finalModel.(SessionSelectorModel); ok {
-		if finalM.selected && len(finalM.sessions) > 0 {
-			selectedSession := finalM.sessions[finalM.cursor]
-			fmt.Printf("\nLoading session: %s\n", selectedSession.Description)
-			time.Sleep(500 * time.Millisecond)
-			return RunStaticTUIWithWorkspace(selectedSession.WorkspacePath, version)
+		p := tea.NewProgram(m, tea.WithAltScreen())
+		finalModel, err := p.Run()
+		if err != nil {
+			return err
 		}
+
+		// If user selected a session, launch the org chart TUI
+		if finalM, ok := finalModel.(SessionSelectorModel); ok {
+			if finalM.selected && len(finalM.sessions) > 0 {
+				selectedSession := finalM.sessions[finalM.cursor]
+				shouldGoBack, err := runSessionWithBackNavigation(selectedSession.WorkspacePath, version)
+				if err != nil {
+					return err
+				}
+				// If user pressed back, loop to show selector again
+				if shouldGoBack {
+					continue
+				}
+			}
+		}
+
+		// User quit without selecting
+		return nil
+	}
+}
+
+// runSessionWithBackNavigation runs the org chart TUI and returns true if user wants to go back
+func runSessionWithBackNavigation(workspacePath, version string) (bool, error) {
+	// Create session manager
+	sm, err := session.NewSessionManager(workspacePath)
+	if err != nil {
+		return false, fmt.Errorf("failed to create session manager: %w", err)
 	}
 
-	return nil
+	// Loop to allow returning to TUI after detaching from tmux
+	for {
+		// Load sessions
+		sessions, err := sm.GetActiveSessions()
+		if err != nil {
+			return false, fmt.Errorf("failed to load sessions: %w", err)
+		}
+
+		model := NewOrgChartModel(nil, sm, workspacePath, version)
+		model.activeSessions = sessions
+		model.updateComponentsFromSessions()
+		model.loadOrchestratorState()
+		model.initialized = true
+		model.addLog(fmt.Sprintf("Loaded %d sessions from %s", len(sessions), workspacePath))
+		if len(sessions) > 0 {
+			model.addLog(model.generateStatusSummary())
+		}
+
+		p := tea.NewProgram(model, tea.WithAltScreen())
+		finalModel, err := p.Run()
+		if err != nil {
+			return false, err
+		}
+
+		if m, ok := finalModel.(OrgChartModel); ok {
+			// Check if user wants to go back to session selector
+			if m.goBack {
+				return true, nil
+			}
+
+			// Check if we need to attach to a tmux session
+			if m.attachToSession != "" {
+				cmd := exec.Command("bash", "-c", fmt.Sprintf("clear && tmux attach -t %s", m.attachToSession))
+				cmd.Stdin = os.Stdin
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				err := cmd.Run()
+				if err != nil {
+					fmt.Printf("Error attaching to tmux: %v\nPress Enter to return to TUI...", err)
+					fmt.Scanln()
+				}
+				// After detaching from tmux, loop back to TUI
+				continue
+			}
+		}
+
+		// User quit normally
+		return false, nil
+	}
 }
