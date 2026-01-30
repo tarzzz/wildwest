@@ -66,8 +66,34 @@ func init() {
 func startTeam(cmd *cobra.Command, args []string) error {
 	task := strings.Join(args, " ")
 
-	// Create session manager
-	sm, err := session.NewSessionManager(workspaceDir)
+	// Generate session ID and create session directory
+	sessionID := session.GenerateSessionID()
+	sessionPath := filepath.Join(workspaceDir, sessionID)
+
+	// Create session directory
+	if err := os.MkdirAll(sessionPath, 0755); err != nil {
+		return fmt.Errorf("failed to create session directory: %w", err)
+	}
+
+	// Save task description
+	if err := session.SaveSessionDescription(sessionPath, task); err != nil {
+		return fmt.Errorf("failed to save session description: %w", err)
+	}
+
+	// Save session metadata
+	sessionMeta := session.SessionMetadata{
+		ID:            sessionID,
+		Description:   task,
+		CreatedAt:     time.Now(),
+		WorkspacePath: sessionPath,
+	}
+	metaData, _ := json.MarshalIndent(sessionMeta, "", "  ")
+	if err := os.WriteFile(filepath.Join(sessionPath, "session.json"), metaData, 0644); err != nil {
+		return fmt.Errorf("failed to save session metadata: %w", err)
+	}
+
+	// Create session manager with session-specific path
+	sm, err := session.NewSessionManager(sessionPath)
 	if err != nil {
 		return fmt.Errorf("failed to create session manager: %w", err)
 	}
@@ -78,8 +104,9 @@ func startTeam(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create workspace: %w", err)
 	}
 
-	fmt.Printf("Created workspace: %s\n", workspace.ID)
-	fmt.Printf("Workspace path: %s\n\n", sm.GetWorkspacePath())
+	fmt.Printf("Created session: %s\n", sessionID)
+	fmt.Printf("Session path: %s\n", sessionPath)
+	fmt.Printf("Workspace ID: %s\n\n", workspace.ID)
 
 	// Create initial team structure (Manager only)
 	// All other resources will be requested dynamically by the manager
@@ -98,7 +125,7 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Directory: %s\n\n", managerSession.ID)
 
 	// Create orchestrator directory with initial state
-	orchestratorDir := filepath.Join(workspaceDir, "orchestrator")
+	orchestratorDir := filepath.Join(sessionPath, "orchestrator")
 	if err := os.MkdirAll(orchestratorDir, 0755); err != nil {
 		return fmt.Errorf("failed to create orchestrator directory: %w", err)
 	}
@@ -106,6 +133,8 @@ func startTeam(cmd *cobra.Command, args []string) error {
 	// Create initial orchestrator state
 	initialState := map[string]interface{}{
 		"id":                    "orchestrator",
+		"session_id":            sessionID,
+		"session_path":          sessionPath,
 		"status":                "initializing",
 		"start_time":            time.Now(),
 		"current_work":          "Waiting to start monitoring",
@@ -134,7 +163,7 @@ func startTeam(cmd *cobra.Command, args []string) error {
 
 		// Build command: wildwest orchestrate --workspace <workspace> --no-tui
 		// (runs orchestrator loop, not TUI)
-		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s --tui=false", workspaceDir)
+		orchestrateCmd := fmt.Sprintf("wildwest orchestrate --workspace %s --tui=false", sessionPath)
 
 		// Start tmux session with orchestrator
 		tmuxCmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, orchestrateCmd)
@@ -154,10 +183,10 @@ func startTeam(cmd *cobra.Command, args []string) error {
 		if GitCommit != "unknown" && GitCommit != "" {
 			version = GitCommit[:7]
 		}
-		return orchestrator.RunStaticTUIWithWorkspace(workspaceDir, version)
+		return orchestrator.RunStaticTUIWithWorkspace(sessionPath, version)
 	} else {
 		fmt.Println("⚠️  IMPORTANT: Start the orchestrator to spawn Claude instances:")
-		fmt.Printf("   wildwest orchestrate --workspace %s\n\n", workspaceDir)
+		fmt.Printf("   wildwest orchestrate --workspace %s\n\n", sessionPath)
 
 		fmt.Println("The orchestrator will:")
 		fmt.Println("  1. Spawn the Engineering Manager")

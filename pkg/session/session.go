@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -29,6 +31,7 @@ const (
 // Session represents a persona's active session
 type Session struct {
 	ID              string      `json:"id"`
+	ParentSessionID string      `json:"parent_session_id,omitempty"` // Parent session directory ID (e.g., "abc123ef")
 	PersonaType     SessionType `json:"persona_type"`
 	PersonaName     string      `json:"persona_name"`
 	StartTime       time.Time   `json:"start_time"`
@@ -174,14 +177,18 @@ func (sm *SessionManager) CreateSession(personaType SessionType, personaName str
 		personaName = sm.nameGen.GetNameForPersona(string(personaType))
 	}
 
+	// Extract parent session ID from workspace path
+	parentSessionID := filepath.Base(sm.workspacePath)
+
 	session := &Session{
-		ID:          fmt.Sprintf("%s-%d", personaType, time.Now().UnixNano()/1000000), // Use milliseconds for uniqueness
-		PersonaType: personaType,
-		PersonaName: personaName,
-		StartTime:   time.Now(),
-		Status:      "active",
-		WorkspaceID: workspaceID,
-		PID:         os.Getpid(),
+		ID:              fmt.Sprintf("%s-%d", personaType, time.Now().UnixNano()/1000000), // Use milliseconds for uniqueness
+		ParentSessionID: parentSessionID,
+		PersonaType:     personaType,
+		PersonaName:     personaName,
+		StartTime:       time.Now(),
+		Status:          "active",
+		WorkspaceID:     workspaceID,
+		PID:             os.Getpid(),
 	}
 
 	// Create persona's database directory
@@ -777,4 +784,71 @@ func (sm *SessionManager) getSimpleCurrentWork(sessionID string) string {
 	}
 
 	return "No active tasks"
+}
+
+// GenerateSessionID creates a random 8-character session ID
+func GenerateSessionID() string {
+	bytes := make([]byte, 4)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}
+
+// SessionMetadata holds information about a session
+type SessionMetadata struct {
+	ID            string    `json:"id"`
+	Description   string    `json:"description"`
+	CreatedAt     time.Time `json:"created_at"`
+	WorkspacePath string    `json:"workspace_path"`
+}
+
+// SaveSessionDescription saves the task description to description.txt
+func SaveSessionDescription(sessionPath, description string) error {
+	descPath := filepath.Join(sessionPath, "description.txt")
+	return os.WriteFile(descPath, []byte(description), 0644)
+}
+
+// LoadSessionDescription reads the task description from description.txt
+func LoadSessionDescription(sessionPath string) (string, error) {
+	descPath := filepath.Join(sessionPath, "description.txt")
+	data, err := os.ReadFile(descPath)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// ListSessions returns all session directories in the base workspace
+func ListSessions(baseWorkspace string) ([]SessionMetadata, error) {
+	entries, err := os.ReadDir(baseWorkspace)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []SessionMetadata{}, nil
+		}
+		return nil, err
+	}
+
+	var sessions []SessionMetadata
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		sessionPath := filepath.Join(baseWorkspace, entry.Name())
+		descPath := filepath.Join(sessionPath, "description.txt")
+
+		// Check if this is a valid session directory
+		if _, err := os.Stat(descPath); err == nil {
+			desc, _ := LoadSessionDescription(sessionPath)
+			info, _ := entry.Info()
+
+			sessions = append(sessions, SessionMetadata{
+				ID:            entry.Name(),
+				Description:   desc,
+				CreatedAt:     info.ModTime(),
+				WorkspacePath: sessionPath,
+			})
+		}
+	}
+
+	return sessions, nil
 }
