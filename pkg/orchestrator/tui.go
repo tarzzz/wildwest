@@ -164,15 +164,6 @@ func tickCmd() tea.Cmd {
 
 func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case PingResultMsg:
-		// Handle ping result
-		if msg.success {
-			m.addLog(fmt.Sprintf("✅ Pinged agent: %s", msg.agentID))
-		} else {
-			m.addLog(fmt.Sprintf("❌ Failed to ping agent %s: %v", msg.agentID, msg.err))
-		}
-		return m, nil
-
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -204,15 +195,6 @@ func (m OrgChartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if comp.TmuxSpawned && comp.TmuxSession != "" {
 					m.attachToSession = comp.TmuxSession
 					return m, tea.Quit
-				}
-			}
-
-		case "p":
-			// Ping selected agent to check for new instructions
-			if m.selectedIndex >= 0 && m.selectedIndex < len(m.components) {
-				comp := m.components[m.selectedIndex]
-				if comp.ID != "orchestrator" {
-					return m, m.pingAgent(comp.ID)
 				}
 			}
 
@@ -538,7 +520,7 @@ func (m OrgChartModel) View() string {
 
 	// Footer
 	b.WriteString("\n")
-	instructions := "↑↓/jk: navigate | d: details | a: attach | p: ping agent | K: kill session | esc/b: back | q: quit"
+	instructions := "↑↓/jk: navigate | d: details | a: attach | K: kill session | esc/b: back | q: quit"
 	b.WriteString(footerStyle.Render(instructions))
 
 	return b.String()
@@ -636,45 +618,6 @@ func (m OrgChartModel) getStatusMarker(status string) string {
 	}
 }
 
-// PingResultMsg is sent after pinging an agent
-type PingResultMsg struct {
-	agentID string
-	success bool
-	err     error
-}
-
-// pingAgent sends a prompt to the agent's tmux session asking it to check for new instructions
-func (m OrgChartModel) pingAgent(agentID string) tea.Cmd {
-	return func() tea.Msg {
-		// Find the tmux session for this agent
-		var tmuxSession string
-		for _, sess := range m.activeSessions {
-			if sess.ID == agentID {
-				tmuxSession = sess.TmuxSession
-				break
-			}
-		}
-
-		if tmuxSession == "" {
-			return PingResultMsg{agentID: agentID, success: false, err: fmt.Errorf("no tmux session found")}
-		}
-
-		// Send keystrokes to Claude asking it to check instructions
-		// First send Ctrl+C to interrupt and get a fresh prompt
-		exec.Command("tmux", "send-keys", "-t", tmuxSession, "C-c").Run()
-		time.Sleep(100 * time.Millisecond)
-
-		// Then send the prompt with Enter to submit
-		cmd := exec.Command("tmux", "send-keys", "-t", tmuxSession,
-			"Check instructions.md and tasks.md for new assignments. If found, start working on them immediately.", "Enter")
-		err := cmd.Run()
-
-		if err != nil {
-			return PingResultMsg{agentID: agentID, success: false, err: err}
-		}
-		return PingResultMsg{agentID: agentID, success: true, err: nil}
-	}
-}
 
 // killSession kills all spawned tmux sessions and deletes the session directory
 func (m OrgChartModel) killSession() tea.Cmd {

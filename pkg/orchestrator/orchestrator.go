@@ -768,10 +768,12 @@ Bash(PERSONA_DIR=%s; while true; do CURRENT=$(grep '^## Task:' $PERSONA_DIR/task
 ## CRITICAL: After Completing Tasks
 
 When you complete all your current tasks:
-1. Check instructions.md for new assignments
-2. If new instructions found, act on them immediately
-3. If no new instructions, check again every 30 seconds
-4. Update tasks.md with "Waiting for instructions" status
+1. IMMEDIATELY use Read tool to read instructions.md and check for new assignments
+2. If new instructions found, start working on them right away
+3. Before declaring yourself done or idle, ALWAYS check instructions.md one more time
+4. If no new instructions, update tasks.md with "Waiting for instructions" status
+
+**IMPORTANT**: Similar to how you send notifications after responses, you MUST check instructions.md after completing each task. This is not optional.
 
 ## Startup Sequence
 1. Read ~/.zshrc to discover available commands and functions
