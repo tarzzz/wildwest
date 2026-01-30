@@ -24,6 +24,7 @@ build: ## Build the binary
 	@echo "Commit: $(GIT_COMMIT)"
 	@mkdir -p $(BUILD_DIR)
 	@go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_FILE)
+	@codesign -s - -f $(BUILD_DIR)/$(BINARY_NAME) 2>/dev/null || true
 	@echo "Built $(BUILD_DIR)/$(BINARY_NAME)"
 
 install: ## Install the binary to $GOPATH/bin
@@ -31,6 +32,7 @@ install: ## Install the binary to $GOPATH/bin
 	@echo "Version: $(VERSION)"
 	@echo "Commit: $(GIT_COMMIT)"
 	@go install $(LDFLAGS)
+	@codesign -s - -f $(shell go env GOPATH)/bin/$(BINARY_NAME) 2>/dev/null || true
 	@echo "Installed to $(shell go env GOPATH)/bin/$(BINARY_NAME)"
 
 test: ## Run tests
