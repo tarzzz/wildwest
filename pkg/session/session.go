@@ -38,6 +38,12 @@ type Session struct {
 	TmuxSession     string      `json:"tmux_session,omitempty"`     // Tmux session name
 	TmuxSpawned     bool        `json:"tmux_spawned"`               // Whether tmux session is spawned
 	TmuxAttachCmd   string      `json:"tmux_attach_cmd,omitempty"`  // Command to attach to tmux session
+	// Token usage tracking
+	InputTokens     int64       `json:"input_tokens,omitempty"`     // Total input tokens used
+	OutputTokens    int64       `json:"output_tokens,omitempty"`    // Total output tokens used
+	TotalTokens     int64       `json:"total_tokens,omitempty"`     // Total tokens (input + output)
+	EstimatedCost   float64     `json:"estimated_cost,omitempty"`   // Estimated cost in USD
+	Model           string      `json:"model,omitempty"`            // Model used (sonnet, opus, haiku)
 }
 
 // Workspace manages the shared database directory

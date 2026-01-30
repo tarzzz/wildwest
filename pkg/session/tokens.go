@@ -64,7 +64,7 @@ func (sm *SessionManager) GetTokenUsage(sessionID string) (*TokenUsage, error) {
 	return &usage, nil
 }
 
-// SaveTokenUsage saves token usage to disk
+// SaveTokenUsage saves token usage to disk and updates session.json
 func (sm *SessionManager) SaveTokenUsage(usage *TokenUsage) error {
 	data, err := json.MarshalIndent(usage, "", "  ")
 	if err != nil {
@@ -72,7 +72,29 @@ func (sm *SessionManager) SaveTokenUsage(usage *TokenUsage) error {
 	}
 
 	tokensPath := filepath.Join(sm.getPersonaDir(usage.SessionID), "tokens.json")
-	return os.WriteFile(tokensPath, data, 0644)
+	if err := os.WriteFile(tokensPath, data, 0644); err != nil {
+		return err
+	}
+
+	// Also update session.json with token info
+	sessionPath := filepath.Join(sm.getPersonaDir(usage.SessionID), "session.json")
+	sessionData, err := os.ReadFile(sessionPath)
+	if err != nil {
+		return nil // Session not found, but tokens.json was saved
+	}
+
+	var session Session
+	if err := json.Unmarshal(sessionData, &session); err != nil {
+		return nil // Invalid session file, but tokens.json was saved
+	}
+
+	session.InputTokens = usage.InputTokens
+	session.OutputTokens = usage.OutputTokens
+	session.TotalTokens = usage.TotalTokens
+	session.EstimatedCost = usage.EstimatedCost
+	session.Model = usage.Model
+
+	return sm.saveSession(&session)
 }
 
 // UpdateTokenUsage updates token counts and recalculates cost
