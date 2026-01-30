@@ -473,6 +473,13 @@ When your testing is DONE, you MUST report to Leader:
 					"Should NOT fix bugs directly (report to requester instead)",
 				},
 			},
+		"devops": {
+			Name:        "DevOps Agent",
+			Description: "Infrastructure and deployment specialist",
+			Instructions: `DevOps Agent: Kubernetes, Cloud (AWS/GCP/Azure), IaC, CI/CD. Verify context. Test staging first.`,
+			Capabilities: []string{"Kubernetes", "Cloud ops", "IaC", "CI/CD"},
+			Constraints: []string{"Verify context first", "Test in staging"},
+		},
 		},
 	}
 }

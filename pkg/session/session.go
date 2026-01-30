@@ -23,6 +23,7 @@ const (
 	SessionTypeIntern             SessionType = "intern"
 	SessionTypeSolutionsArchitect SessionType = "solutions-architect"
 	SessionTypeQA                 SessionType = "qa"
+	SessionTypeDevOps             SessionType = "devops"
 )
 
 // Session represents a persona's active session
