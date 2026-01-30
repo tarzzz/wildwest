@@ -660,8 +660,9 @@ func (m OrgChartModel) pingAgent(agentID string) tea.Cmd {
 		}
 
 		// Send keystrokes to Claude asking it to check instructions
+		// Note: C-d submits the input to Claude (C-m just creates a new line)
 		cmd := exec.Command("tmux", "send-keys", "-t", tmuxSession,
-			"Check instructions.md and tasks.md for new assignments. If found, start working on them immediately.", "C-m")
+			"Check instructions.md and tasks.md for new assignments. If found, start working on them immediately.", "C-d")
 		err := cmd.Run()
 
 		if err != nil {
