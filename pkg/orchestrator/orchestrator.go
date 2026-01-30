@@ -599,6 +599,14 @@ Your Persona Directory: %s/
 Your Role: %s
 Working Directory: PROJECT ROOT (current directory)
 
+## IMPORTANT: Read Shell Configuration First
+Before starting work, read ~/.zshrc to discover available commands, aliases, and functions:
+- Custom functions defined by the user
+- Useful aliases and shortcuts
+- Environment-specific tools and utilities
+
+Read ~/.zshrc NOW to understand your environment.
+
 ## Important: Working Directory
 - You are running from the PROJECT ROOT directory (where the project was initialized)
 - All your work (code, files, etc.) should be created in the current directory or its subdirectories
@@ -745,7 +753,10 @@ When you complete all your current tasks:
 3. If no new instructions, check again every 30 seconds
 4. Update tasks.md with "Waiting for instructions" status
 
-After starting both background tasks, begin working on your tasks from %s/tasks.md.
+## Startup Sequence
+1. Read ~/.zshrc to discover available commands and functions
+2. Start both background tasks above
+3. Begin working on your tasks from %s/tasks.md
 `, absPersonaDir, absPersonaDir, absPersonaDir)
 
 	return instructions
