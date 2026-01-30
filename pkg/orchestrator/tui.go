@@ -783,27 +783,11 @@ func (m OrgChartModel) renderDetails() string {
 		statusLabel = "Unavailable"
 	}
 
-	// Build details with tmux information
+	// Build simplified details
 	var detailsBuilder strings.Builder
 	detailsBuilder.WriteString(fmt.Sprintf("%s\n\n", comp.Name))
-	detailsBuilder.WriteString(fmt.Sprintf("Role:        %s\n", comp.Role))
-	detailsBuilder.WriteString(fmt.Sprintf("Session ID:  %s\n", comp.ID))
-	detailsBuilder.WriteString(fmt.Sprintf("Status:      %s %s\n", statusMarker, statusLabel))
-
-	// Add tmux information
-	if comp.TmuxSpawned {
-		detailsBuilder.WriteString("Tmux:        🖥️  Spawned\n")
-		if comp.TmuxSession != "" {
-			detailsBuilder.WriteString(fmt.Sprintf("Session:     %s\n", comp.TmuxSession))
-			// Only show attach.sh for actual agent sessions, not orchestrator
-			if comp.ID != "orchestrator" {
-				detailsBuilder.WriteString(fmt.Sprintf("\nAttach:      ./%s/attach.sh\n", comp.ID))
-			}
-			detailsBuilder.WriteString(fmt.Sprintf("             tmux attach -t %s\n", comp.TmuxSession))
-		}
-	} else {
-		detailsBuilder.WriteString("Tmux:        ⏳ Not spawned yet\n")
-	}
+	detailsBuilder.WriteString(fmt.Sprintf("Role:   %s\n", comp.Role))
+	detailsBuilder.WriteString(fmt.Sprintf("Status: %s %s\n", statusMarker, statusLabel))
 
 	detailsBuilder.WriteString(fmt.Sprintf("\nCurrent Activity:\n%s\n", comp.StatusMessage))
 	detailsBuilder.WriteString(fmt.Sprintf("\nDescription:\n%s", comp.Description))
