@@ -7,6 +7,11 @@ BINARY_NAME=wildwest
 BUILD_DIR=./bin
 MAIN_FILE=./main.go
 
+# Version information
+GIT_COMMIT=$(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+VERSION=dev
+LDFLAGS=-ldflags "-X github.com/tarzzz/wildwest/cmd.Version=$(VERSION) -X github.com/tarzzz/wildwest/cmd.GitCommit=$(GIT_COMMIT)"
+
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
@@ -15,13 +20,17 @@ help: ## Show this help message
 
 build: ## Build the binary
 	@echo "Building $(BINARY_NAME)..."
+	@echo "Version: $(VERSION)"
+	@echo "Commit: $(GIT_COMMIT)"
 	@mkdir -p $(BUILD_DIR)
-	@go build -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_FILE)
+	@go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_FILE)
 	@echo "Built $(BUILD_DIR)/$(BINARY_NAME)"
 
 install: ## Install the binary to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
-	@go install
+	@echo "Version: $(VERSION)"
+	@echo "Commit: $(GIT_COMMIT)"
+	@go install $(LDFLAGS)
 	@echo "Installed to $(shell go env GOPATH)/bin/$(BINARY_NAME)"
 
 test: ## Run tests

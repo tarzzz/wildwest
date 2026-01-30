@@ -150,7 +150,11 @@ func startTeam(cmd *cobra.Command, args []string) error {
 		time.Sleep(1 * time.Second)
 
 		// Open TUI to monitor progress
-		return orchestrator.RunStaticTUIWithWorkspace(workspaceDir)
+		version := Version
+		if GitCommit != "unknown" && GitCommit != "" {
+			version = GitCommit[:7]
+		}
+		return orchestrator.RunStaticTUIWithWorkspace(workspaceDir, version)
 	} else {
 		fmt.Println("⚠️  IMPORTANT: Start the orchestrator to spawn Claude instances:")
 		fmt.Printf("   wildwest orchestrate --workspace %s\n\n", workspaceDir)

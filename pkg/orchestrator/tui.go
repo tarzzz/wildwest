@@ -46,6 +46,7 @@ type OrgChartModel struct {
 	tickCount        int  // Track ticks for less frequent updates
 	initialized      bool // Track if we've done initial load
 	attachToSession  string // Tmux session to attach to on exit
+	version          string // Version info for display
 }
 
 // Styles
@@ -113,7 +114,7 @@ var (
 )
 
 // NewOrgChartModel creates a new static org chart TUI
-func NewOrgChartModel(orch *Orchestrator, sm *session.SessionManager, workspacePath string) OrgChartModel {
+func NewOrgChartModel(orch *Orchestrator, sm *session.SessionManager, workspacePath, version string) OrgChartModel {
 	// Start with empty components - will be populated from real sessions
 	return OrgChartModel{
 		components:     make([]Component, 0),
@@ -124,6 +125,7 @@ func NewOrgChartModel(orch *Orchestrator, sm *session.SessionManager, workspaceP
 		workspacePath:  workspacePath,
 		activeSessions: make([]*session.Session, 0),
 		logs:           make([]string, 0),
+		version:        version,
 		maxLogs:        5,
 	}
 }
@@ -477,8 +479,12 @@ func (m *OrgChartModel) getPersonaDescription(personaType session.SessionType) s
 func (m OrgChartModel) View() string {
 	var b strings.Builder
 
-	// Header
-	header := headerStyle.Render("🚀 WildWest Team")
+	// Header with version
+	title := "🚀 WildWest Team"
+	if m.version != "" {
+		title += " " + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("("+m.version+")")
+	}
+	header := headerStyle.Render(title)
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
@@ -816,11 +822,11 @@ func (m OrgChartModel) renderDetails() string {
 
 // RunStaticTUI starts the static org chart TUI with orchestrator
 func RunStaticTUI() error {
-	return RunStaticTUIWithWorkspace(".ww-db")
+	return RunStaticTUIWithWorkspace(".ww-db", "")
 }
 
 // RunStaticTUIWithWorkspace starts the TUI with a specific workspace
-func RunStaticTUIWithWorkspace(workspacePath string) error {
+func RunStaticTUIWithWorkspace(workspacePath, version string) error {
 	// Create session manager directly (no orchestrator needed for read-only TUI)
 	sm, err := session.NewSessionManager(workspacePath)
 	if err != nil {
@@ -835,7 +841,7 @@ func RunStaticTUIWithWorkspace(workspacePath string) error {
 			return fmt.Errorf("failed to load sessions: %w", err)
 		}
 
-		model := NewOrgChartModel(nil, sm, workspacePath)
+		model := NewOrgChartModel(nil, sm, workspacePath, version)
 		// Pre-populate with loaded sessions
 		model.activeSessions = sessions
 		model.updateComponentsFromSessions()

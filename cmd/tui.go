@@ -22,5 +22,9 @@ func init() {
 }
 
 func runTUI(cmd *cobra.Command, args []string) error {
-	return orchestrator.RunStaticTUIWithWorkspace(tuiWorkspace)
+	version := Version
+	if GitCommit != "unknown" && GitCommit != "" {
+		version = GitCommit[:7] // Show short commit hash
+	}
+	return orchestrator.RunStaticTUIWithWorkspace(tuiWorkspace, version)
 }

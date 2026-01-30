@@ -12,6 +12,10 @@ import (
 var (
 	cfgFile string
 	verbose bool
+	// Version is set via ldflags at build time
+	Version = "dev"
+	// GitCommit is set via ldflags at build time
+	GitCommit = "unknown"
 )
 
 // runDefaultCommand handles the case where wildwest is called with just a task string
